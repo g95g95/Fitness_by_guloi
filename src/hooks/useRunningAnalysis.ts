@@ -10,11 +10,15 @@ import {
   PoseFrame,
   AngleStats,
   AngleName,
-  AnalysisSummary,
   Suggestion,
   MuscleInsight,
   RunningThresholds,
   DEFAULT_RUNNING_THRESHOLDS,
+  RunningPatternFlags,
+  SymmetryMetrics,
+  FrontalMetrics,
+  ExtendedAnalysisSummary,
+  ViewType,
 } from '../lib/poseTypes';
 import {
   angleBetweenPoints,
@@ -33,6 +37,11 @@ import {
   generateRunningSuggestions,
   generateRunningMuscleInsights,
 } from '../lib/runningHeuristics';
+import {
+  detectRunningPatterns,
+  generatePatternSuggestions,
+} from '../lib/patterns/runningPatterns';
+import { computeSymmetryMetrics } from '../lib/symmetry';
 
 /**
  * Configuration for running analysis
@@ -86,11 +95,19 @@ export interface UseRunningAnalysisReturn {
   /** Reset all analysis data */
   reset: () => void;
   /** Get full analysis summary */
-  getSummary: () => AnalysisSummary;
+  getSummary: () => ExtendedAnalysisSummary;
   /** Analysis duration in ms */
   duration: number;
   /** Current gait phase */
   gaitPhase: 'left_stance' | 'right_stance' | 'flight' | 'unknown';
+  /** Detected pattern flags */
+  patternFlags: RunningPatternFlags;
+  /** Symmetry metrics */
+  symmetryMetrics: SymmetryMetrics;
+  /** Update frontal metrics from front view analysis */
+  setFrontalMetrics: (metrics: FrontalMetrics | null) => void;
+  /** Get gait data for external use */
+  getGaitData: () => GaitPhaseData;
 }
 
 /**
@@ -131,6 +148,11 @@ export function useRunningAnalysis(
   const [cadence, setCadence] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [gaitPhase, setGaitPhase] = useState<'left_stance' | 'right_stance' | 'flight' | 'unknown'>('unknown');
+
+  // New state for pattern detection and symmetry
+  const [patternFlags, setPatternFlags] = useState<RunningPatternFlags>({});
+  const [symmetryMetrics, setSymmetryMetrics] = useState<SymmetryMetrics>({});
+  const [frontalMetrics, setFrontalMetricsState] = useState<FrontalMetrics | null>(null);
 
   // Refs for internal buffers
   const angleBuffersRef = useRef<Record<string, (number | null)[]>>({
@@ -442,11 +464,39 @@ export function useRunningAnalysis(
       // Update stats periodically
       if (frameCountRef.current % 5 === 0) {
         const stats = updateStats();
-        setSuggestions(generateRunningSuggestions(stats, gaitDataRef.current, finalConfig.thresholds));
+
+        // Generate basic suggestions
+        const baseSuggestions = generateRunningSuggestions(stats, gaitDataRef.current, finalConfig.thresholds);
+
+        // Detect patterns and generate pattern-based suggestions
+        const patterns = detectRunningPatterns(stats, gaitDataRef.current, frontalMetrics);
+        setPatternFlags(patterns);
+
+        const patternSuggestions = generatePatternSuggestions(patterns);
+
+        // Merge suggestions (avoid duplicates by ID)
+        const allSuggestions = [...baseSuggestions];
+        for (const ps of patternSuggestions) {
+          if (!allSuggestions.some((s) => s.id === ps.id)) {
+            allSuggestions.push(ps);
+          }
+        }
+        setSuggestions(allSuggestions);
+
+        // Compute symmetry metrics
+        const symmetry = computeSymmetryMetrics(
+          stats['left_hip_extension'] || null,
+          stats['right_hip_extension'] || null,
+          stats['left_knee_midstance'] || null,
+          stats['right_knee_midstance'] || null,
+          frontalMetrics
+        );
+        setSymmetryMetrics(symmetry);
+
         setMuscleInsights(generateRunningMuscleInsights(stats));
       }
     },
-    [computeAngles, detectGaitPhase, updateStats, finalConfig]
+    [computeAngles, detectGaitPhase, updateStats, finalConfig, frontalMetrics]
   );
 
   /**
@@ -501,12 +551,20 @@ export function useRunningAnalysis(
     setCadence(0);
     setDuration(0);
     setGaitPhase('unknown');
+    setPatternFlags({});
+    setSymmetryMetrics({});
+    setFrontalMetricsState(null);
   }, []);
 
   /**
-   * Get full analysis summary
+   * Get full analysis summary (extended)
    */
-  const getSummary = useCallback((): AnalysisSummary => {
+  const getSummary = useCallback((): ExtendedAnalysisSummary => {
+    const viewsUsed: ViewType[] = ['side'];
+    if (frontalMetrics) {
+      viewsUsed.push('front');
+    }
+
     return {
       mode: 'running',
       duration,
@@ -514,8 +572,26 @@ export function useRunningAnalysis(
       suggestions,
       muscleInsights,
       cycleCount: strideCount,
+      pattern_flags: patternFlags,
+      symmetry: symmetryMetrics,
+      frontal_metrics: frontalMetrics || undefined,
+      views_used: viewsUsed,
     };
-  }, [duration, angleStats, suggestions, muscleInsights, strideCount]);
+  }, [duration, angleStats, suggestions, muscleInsights, strideCount, patternFlags, symmetryMetrics, frontalMetrics]);
+
+  /**
+   * Set frontal metrics from external frontal analysis
+   */
+  const setFrontalMetrics = useCallback((metrics: FrontalMetrics | null) => {
+    setFrontalMetricsState(metrics);
+  }, []);
+
+  /**
+   * Get current gait data for external use
+   */
+  const getGaitData = useCallback((): GaitPhaseData => {
+    return { ...gaitDataRef.current };
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -536,6 +612,10 @@ export function useRunningAnalysis(
     getSummary,
     duration,
     gaitPhase,
+    patternFlags,
+    symmetryMetrics,
+    setFrontalMetrics,
+    getGaitData,
   };
 }
 

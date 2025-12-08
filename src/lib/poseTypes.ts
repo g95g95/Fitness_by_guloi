@@ -285,3 +285,181 @@ export const KEYPOINT_INDICES: Record<KeypointName, number> = {
  * Minimum confidence threshold for considering a keypoint valid
  */
 export const MIN_KEYPOINT_CONFIDENCE = 0.5;
+
+/**
+ * View type for camera/analysis
+ */
+export type ViewType = 'side' | 'front';
+
+/**
+ * Extended angle names including frontal plane metrics
+ */
+export type FrontalAngleName =
+  | 'pelvic_drop_left'
+  | 'pelvic_drop_right'
+  | 'valgus_angle_left'
+  | 'valgus_angle_right'
+  | 'ankle_medial_drift_left'
+  | 'ankle_medial_drift_right'
+  | 'knee_lateral_deviation_left'
+  | 'knee_lateral_deviation_right';
+
+/**
+ * Pattern flags for detected biomechanical issues (running)
+ */
+export interface RunningPatternFlags {
+  overstride?: boolean;
+  hip_drop?: boolean;
+  knee_valgus?: boolean;
+  pronation?: boolean;
+  limited_hip_extension?: boolean;
+  excessive_trunk_lean?: boolean;
+}
+
+/**
+ * Pattern flags for detected biomechanical issues (cycling)
+ */
+export interface CyclingPatternFlags {
+  saddle_low?: boolean;
+  saddle_high?: boolean;
+  knee_tracking_instability?: boolean;
+  excessive_trunk_lean?: boolean;
+}
+
+/**
+ * Combined pattern flags (union of running and cycling)
+ */
+export interface PatternFlags extends RunningPatternFlags, CyclingPatternFlags {}
+
+/**
+ * Symmetry metrics for left/right comparison
+ */
+export interface SymmetryMetrics {
+  /** Hip drop difference (right - left), in normalized units */
+  hip_drop_diff?: number;
+  /** Knee valgus difference (right - left), in degrees */
+  valgus_diff?: number;
+  /** Stance time difference (right - left), in ms */
+  stance_time_diff?: number;
+  /** Hip extension difference (right - left), in degrees */
+  hip_extension_diff?: number;
+  /** Knee flexion difference (right - left), in degrees */
+  knee_flexion_diff?: number;
+  /** Asymmetry index (0-1, higher = more asymmetric) */
+  asymmetry_index?: number;
+}
+
+/**
+ * Frontal plane metrics computed from front view
+ */
+export interface FrontalMetrics {
+  /** Peak pelvic drop on left stance (normalized Y difference) */
+  pelvic_drop_peak_left?: number;
+  /** Peak pelvic drop on right stance */
+  pelvic_drop_peak_right?: number;
+  /** Mean pelvic drop */
+  pelvic_drop_mean?: number;
+  /** Left knee valgus angle (degrees, positive = inward) */
+  valgus_angle_left?: number;
+  /** Right knee valgus angle */
+  valgus_angle_right?: number;
+  /** Peak valgus angles */
+  valgus_peak_left?: number;
+  valgus_peak_right?: number;
+  /** Ankle medial drift - horizontal deviation during stance */
+  ankle_medial_drift_left?: number;
+  ankle_medial_drift_right?: number;
+  /** Knee lateral deviation for cycling */
+  knee_lateral_deviation_left?: number;
+  knee_lateral_deviation_right?: number;
+}
+
+/**
+ * Pain location options
+ */
+export type PainLocation =
+  | 'front_knee'
+  | 'outer_knee'
+  | 'inner_knee'
+  | 'back_knee'
+  | 'hip_front'
+  | 'hip_side'
+  | 'lower_back'
+  | 'ankle'
+  | 'shin'
+  | 'calf'
+  | 'foot'
+  | 'other';
+
+/**
+ * Pain entry for a single session
+ */
+export interface PainEntry {
+  /** Unique identifier for the entry */
+  id: string;
+  /** Timestamp when pain was logged */
+  timestamp: number;
+  /** Pain intensity (0-10) */
+  intensity: number;
+  /** Location of pain */
+  location: PainLocation;
+  /** Optional notes */
+  notes?: string;
+  /** Associated session metrics snapshot */
+  sessionMetrics?: {
+    patternFlags?: PatternFlags;
+    symmetry?: SymmetryMetrics;
+    frontalMetrics?: FrontalMetrics;
+  };
+}
+
+/**
+ * Pain correlation result
+ */
+export interface PainCorrelation {
+  /** Pattern flag that correlates with high pain */
+  pattern: keyof PatternFlags;
+  /** How often this pattern appears in high-pain sessions vs low-pain */
+  highPainOccurrence: number;
+  lowPainOccurrence: number;
+  /** Correlation strength indicator */
+  correlationStrength: 'weak' | 'moderate' | 'strong';
+}
+
+/**
+ * Extended analysis summary with new fields
+ */
+export interface ExtendedAnalysisSummary extends AnalysisSummary {
+  /** Pattern flags detected during analysis */
+  pattern_flags?: PatternFlags;
+  /** Symmetry metrics */
+  symmetry?: SymmetryMetrics;
+  /** Frontal plane metrics (if front view was used) */
+  frontal_metrics?: FrontalMetrics;
+  /** View types used in this analysis */
+  views_used?: ViewType[];
+}
+
+/**
+ * Thresholds for frontal plane analysis
+ */
+export interface FrontalThresholds {
+  /** Pelvic drop threshold (normalized, e.g., 0.03 = 3% of frame height) */
+  pelvicDropThreshold: number;
+  /** Knee valgus threshold (degrees) */
+  kneeValgusThreshold: number;
+  /** Ankle medial drift threshold (normalized) */
+  ankleMedialDriftThreshold: number;
+  /** Knee lateral deviation threshold for cycling (normalized) */
+  kneeLateralDeviationThreshold: number;
+}
+
+/**
+ * Default frontal plane thresholds
+ */
+export const DEFAULT_FRONTAL_THRESHOLDS: FrontalThresholds = {
+  pelvicDropThreshold: 0.03,       // 3% of frame height
+  kneeValgusThreshold: 10,         // 10 degrees
+  ankleMedialDriftThreshold: 0.02, // 2% of frame width
+  kneeLateralDeviationThreshold: 0.03, // 3% of frame width
+};

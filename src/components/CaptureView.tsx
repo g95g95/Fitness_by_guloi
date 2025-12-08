@@ -3,19 +3,28 @@
  *
  * Main analysis view with camera feed, pose overlay,
  * angle measurements, and coaching suggestions.
+ *
+ * Supports multi-view workflow:
+ * - Step 1: Side view (required)
+ * - Step 2: Front view (optional)
+ * - Step 3: Summary with pain logging
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ActivityMode } from '../lib/poseTypes';
+import { ActivityMode, ViewType } from '../lib/poseTypes';
 import useCameraStream from '../hooks/useCameraStream';
 import usePoseEstimation from '../hooks/usePoseEstimation';
 import useCyclingAnalysis from '../hooks/useCyclingAnalysis';
 import useRunningAnalysis from '../hooks/useRunningAnalysis';
+import useFrontalAnalysis from '../hooks/useFrontalAnalysis';
+import usePainLogging from '../hooks/usePainLogging';
 import CameraFeed from './CameraFeed';
 import PoseOverlayCanvas from './PoseOverlayCanvas';
 import AnglePanel from './AnglePanel';
 import SummaryPanel from './SummaryPanel';
+import PatternBadges, { PatternSummary } from './PatternBadges';
+import PainInputModal from './PainInputModal';
 
 interface CaptureViewProps {
   /** Activity mode */
@@ -53,8 +62,19 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
   const cyclingAnalysis = useCyclingAnalysis();
   const runningAnalysis = useRunningAnalysis();
 
+  // Frontal analysis hook
+  const frontalAnalysis = useFrontalAnalysis(mode);
+
+  // Pain logging hook
+  const painLogging = usePainLogging();
+
   // Get the appropriate analysis based on mode
   const analysis = mode === 'cycling' ? cyclingAnalysis : runningAnalysis;
+
+  // Multi-view workflow state
+  const [currentView, setCurrentView] = useState<ViewType>('side');
+  const [viewsCompleted, setViewsCompleted] = useState<ViewType[]>([]);
+  const [showPainModal, setShowPainModal] = useState(false);
 
   // State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -93,15 +113,29 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
         if (pose && pose.isValid) {
           setIsAnalyzing(true);
 
-          // Run analysis based on mode
-          if (mode === 'cycling') {
-            cyclingAnalysis.processFrame(pose);
-          } else {
-            runningAnalysis.processFrame(
-              pose,
-              dimensions?.width || 640,
-              dimensions?.height || 480
-            );
+          const frameWidth = dimensions?.width || 640;
+          const frameHeight = dimensions?.height || 480;
+
+          // Run analysis based on current view
+          if (currentView === 'side') {
+            // Side view analysis
+            if (mode === 'cycling') {
+              cyclingAnalysis.processFrame(pose);
+            } else {
+              runningAnalysis.processFrame(pose, frameWidth, frameHeight);
+            }
+          } else if (currentView === 'front') {
+            // Front view analysis
+            frontalAnalysis.processFrame(pose, frameWidth, frameHeight);
+
+            // Update frontal metrics in main analysis hooks
+            if (frontalAnalysis.aggregatedMetrics) {
+              if (mode === 'cycling') {
+                cyclingAnalysis.setFrontalMetrics(frontalAnalysis.aggregatedMetrics);
+              } else {
+                runningAnalysis.setFrontalMetrics(frontalAnalysis.aggregatedMetrics);
+              }
+            }
           }
         }
       });
@@ -116,8 +150,10 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
     mode,
     cyclingAnalysis,
     runningAnalysis,
+    frontalAnalysis,
     dimensions,
     FRAME_INTERVAL,
+    currentView,
   ]);
 
   /**
@@ -149,7 +185,45 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
    */
   const handleReset = () => {
     analysis.reset();
+    frontalAnalysis.reset();
     setIsAnalyzing(false);
+    setCurrentView('side');
+    setViewsCompleted([]);
+  };
+
+  /**
+   * Handle switching to front view
+   */
+  const handleSwitchToFrontView = () => {
+    if (!viewsCompleted.includes('side')) {
+      setViewsCompleted([...viewsCompleted, 'side']);
+    }
+    setCurrentView('front');
+  };
+
+  /**
+   * Handle finishing analysis (skip front view or after front view)
+   */
+  const handleFinishAnalysis = () => {
+    if (!viewsCompleted.includes(currentView)) {
+      setViewsCompleted([...viewsCompleted, currentView]);
+    }
+    setShowPainModal(true);
+  };
+
+  /**
+   * Handle pain submission
+   */
+  const handlePainSubmit = (
+    intensity: number,
+    location: Parameters<typeof painLogging.addEntry>[1],
+    notes?: string
+  ) => {
+    painLogging.addEntry(intensity, location, notes, {
+      patternFlags: mode === 'cycling' ? cyclingAnalysis.patternFlags : runningAnalysis.patternFlags,
+      symmetry: mode === 'cycling' ? cyclingAnalysis.symmetryMetrics : runningAnalysis.symmetryMetrics,
+      frontalMetrics: frontalAnalysis.aggregatedMetrics,
+    });
   };
 
   /**
@@ -206,6 +280,46 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* View step indicator */}
+            <div className="flex items-center gap-1 text-xs">
+              <span className={`px-2 py-1 rounded ${currentView === 'side' ? 'bg-blue-600 text-white' : viewsCompleted.includes('side') ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                1. Side
+              </span>
+              <span className="text-gray-500">&rarr;</span>
+              <span className={`px-2 py-1 rounded ${currentView === 'front' ? 'bg-blue-600 text-white' : viewsCompleted.includes('front') ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                2. Front
+              </span>
+            </div>
+
+            {/* View control buttons */}
+            {currentView === 'side' && isAnalyzing && (
+              <>
+                <button
+                  onClick={handleSwitchToFrontView}
+                  className="px-3 py-1.5 text-sm text-white
+                           bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+                >
+                  Add Front View
+                </button>
+                <button
+                  onClick={handleFinishAnalysis}
+                  className="px-3 py-1.5 text-sm text-gray-300 hover:text-white
+                           bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Finish
+                </button>
+              </>
+            )}
+            {currentView === 'front' && (
+              <button
+                onClick={handleFinishAnalysis}
+                className="px-3 py-1.5 text-sm text-white
+                         bg-green-600 hover:bg-green-500 rounded-lg transition-colors"
+              >
+                Complete Analysis
+              </button>
+            )}
+
             <button
               onClick={handleReset}
               className="px-3 py-1.5 text-sm text-gray-300 hover:text-white
@@ -266,6 +380,24 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
 
             {/* Side panel - angle measurements and suggestions */}
             <div className="space-y-4">
+              {/* Pattern Badges */}
+              {isAnalyzing && (
+                <div className="card p-4">
+                  <h3 className="text-sm font-medium text-gray-300 mb-3">Detected Patterns</h3>
+                  <PatternSummary
+                    patterns={mode === 'cycling' ? cyclingAnalysis.patternFlags : runningAnalysis.patternFlags}
+                    mode={mode}
+                  />
+                  <div className="mt-2">
+                    <PatternBadges
+                      patterns={mode === 'cycling' ? cyclingAnalysis.patternFlags : runningAnalysis.patternFlags}
+                      mode={mode}
+                      compact={true}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Angle Panel */}
               <AnglePanel
                 mode={mode}
@@ -290,8 +422,22 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
 
       {/* Footer info */}
       <footer className="bg-gray-800 border-t border-gray-700 px-4 py-2 text-center text-xs text-gray-500">
-        BiomechCoach - Position your camera at side view for best results
+        {currentView === 'side'
+          ? 'BiomechCoach - Position your camera at side view for best results'
+          : 'BiomechCoach - Position your camera at front view for frontal plane analysis'}
       </footer>
+
+      {/* Pain Input Modal */}
+      <PainInputModal
+        isOpen={showPainModal}
+        onClose={() => setShowPainModal(false)}
+        onSubmit={handlePainSubmit}
+        sessionMetrics={{
+          patternFlags: mode === 'cycling' ? cyclingAnalysis.patternFlags : runningAnalysis.patternFlags,
+          symmetry: mode === 'cycling' ? cyclingAnalysis.symmetryMetrics : runningAnalysis.symmetryMetrics,
+          frontalMetrics: frontalAnalysis.aggregatedMetrics,
+        }}
+      />
     </div>
   );
 };
