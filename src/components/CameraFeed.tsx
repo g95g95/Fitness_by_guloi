@@ -24,7 +24,7 @@ interface CameraFeedProps {
   /** Show framing guide */
   showFramingGuide?: boolean;
   /** Activity mode for framing instructions */
-  mode?: 'cycling' | 'running';
+  mode?: 'cycling' | 'running' | 'static';
 }
 
 /**
@@ -49,7 +49,11 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
       if (mode === 'cycling') {
         return 'Position yourself in side view with your full body visible on the bike.';
       }
-      return 'Position yourself in side view with your full body visible on the treadmill.';
+      if (mode === 'running') {
+        return 'Position yourself in side view with your full body visible on the treadmill.';
+      }
+      // Static mode
+      return 'Position yourself with your full body visible. View depends on the selected exercise.';
     };
 
     const renderStatusOverlay = () => {

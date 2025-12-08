@@ -21,7 +21,7 @@ interface PoseOverlayCanvasProps {
   /** Current angles to display */
   angles?: Record<string, number | null>;
   /** Activity mode for angle display */
-  mode?: 'cycling' | 'running';
+  mode?: 'cycling' | 'running' | 'static';
 }
 
 /**
@@ -219,7 +219,7 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
           const point = transformPoint(rightHip.x, rightHip.y);
           drawAngle(ctx, point, angles.rightHipAngle, 'R Hip');
         }
-      } else {
+      } else if (mode === 'running') {
         // Running mode
         const leftKnee = getKeypoint('left_knee');
         const rightKnee = getKeypoint('right_knee');
@@ -232,6 +232,32 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
         if (rightKnee && angles.rightKnee != null) {
           const point = transformPoint(rightKnee.x, rightKnee.y);
           drawAngle(ctx, point, angles.rightKnee, 'R Knee');
+        }
+      } else if (mode === 'static') {
+        // Static mode - show both knee and hip angles
+        const leftKnee = getKeypoint('left_knee');
+        const rightKnee = getKeypoint('right_knee');
+        const leftHip = getKeypoint('left_hip');
+        const rightHip = getKeypoint('right_hip');
+
+        if (leftKnee && angles.leftKnee != null) {
+          const point = transformPoint(leftKnee.x, leftKnee.y);
+          drawAngle(ctx, point, angles.leftKnee, 'L Knee');
+        }
+
+        if (rightKnee && angles.rightKnee != null) {
+          const point = transformPoint(rightKnee.x, rightKnee.y);
+          drawAngle(ctx, point, angles.rightKnee, 'R Knee');
+        }
+
+        if (leftHip && angles.leftHipAngle != null) {
+          const point = transformPoint(leftHip.x, leftHip.y);
+          drawAngle(ctx, point, angles.leftHipAngle, 'L Hip');
+        }
+
+        if (rightHip && angles.rightHipAngle != null) {
+          const point = transformPoint(rightHip.x, rightHip.y);
+          drawAngle(ctx, point, angles.rightHipAngle, 'R Hip');
         }
       }
     }
