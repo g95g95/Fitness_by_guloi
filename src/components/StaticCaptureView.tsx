@@ -5,19 +5,21 @@
  * Features:
  * - Exercise list on the left
  * - Camera feed with pose overlay in the center
- * - Analysis results and suggestions on the right
- * - 20-second recording workflow
+ * - Assessment results and recommendations on the right
+ * - Configurable assessment duration and report mode
  */
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StaticExercise, PainLocation } from '../lib/poseTypes';
 import { getExerciseInstructions } from '../lib/staticExercises';
+import { AssessmentConfig, AssessmentReportMode, AssessmentPainEntry, downloadSessionAsJson } from '../lib/assessmentTypes';
 import useCameraStream from '../hooks/useCameraStream';
 import usePoseEstimation from '../hooks/usePoseEstimation';
 import useStaticAnalysis from '../hooks/useStaticAnalysis';
 import useFrontalAnalysis from '../hooks/useFrontalAnalysis';
 import usePainLogging from '../hooks/usePainLogging';
+import useAssessment from '../hooks/useAssessment';
 import CameraFeed from './CameraFeed';
 import PoseOverlayCanvas from './PoseOverlayCanvas';
 import ExerciseList from './ExerciseList';
@@ -25,6 +27,8 @@ import RecordingTimer, { RecordingProgressBar } from './RecordingTimer';
 import SummaryPanel from './SummaryPanel';
 import PatternBadges, { PatternSummary } from './PatternBadges';
 import PainInputModal from './PainInputModal';
+import AssessmentSummaryPanel from './AssessmentSummaryPanel';
+import AssessmentConfigModal from './AssessmentConfigModal';
 
 /**
  * Static Capture View Component
@@ -62,12 +66,17 @@ const StaticCaptureView: React.FC = () => {
   // Pain logging hook
   const painLogging = usePainLogging();
 
+  // Assessment hook
+  const assessment = useAssessment();
+
   // State
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set());
   const [showPainModal, setShowPainModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [countdownValue, setCountdownValue] = useState(3);
+  const [pendingPainExercise, setPendingPainExercise] = useState<StaticExercise | null>(null);
 
   const animationFrameRef = useRef<number>(0);
   const lastProcessTimeRef = useRef<number>(0);
@@ -81,6 +90,8 @@ const StaticCaptureView: React.FC = () => {
    */
   useEffect(() => {
     initializePose({ modelComplexity: 1 });
+    // Start assessment session
+    assessment.startSession('full');
   }, [initializePose]);
 
   /**
@@ -159,22 +170,33 @@ const StaticCaptureView: React.FC = () => {
   };
 
   /**
-   * Handle start recording with countdown
+   * Handle start assessment button click
    */
-  const handleStartRecording = () => {
+  const handleStartAssessmentClick = () => {
+    if (!staticAnalysis.currentExercise) return;
+    setShowConfigModal(true);
+  };
+
+  /**
+   * Handle assessment config and start recording
+   */
+  const handleStartAssessment = (config: AssessmentConfig, reportMode: AssessmentReportMode) => {
     if (!staticAnalysis.currentExercise) return;
 
-    setShowCountdown(true);
-    setCountdownValue(3);
+    assessment.updateConfig(config);
+    assessment.setReportMode(reportMode);
 
-    // Start countdown
+    // Start countdown with detection delay
+    setShowCountdown(true);
+    setCountdownValue(config.detectionDelay);
+
     const countdownInterval = setInterval(() => {
       setCountdownValue((v) => {
         if (v <= 1) {
           clearInterval(countdownInterval);
           setShowCountdown(false);
-          // Start actual recording
-          staticAnalysis.startRecording(staticAnalysis.currentExercise?.durationSeconds || 20);
+          // Start actual recording with configured duration
+          staticAnalysis.startRecording(config.duration);
           return 0;
         }
         return v - 1;
@@ -189,6 +211,10 @@ const StaticCaptureView: React.FC = () => {
     const currentExercise = staticAnalysis.currentExercise;
     if (currentExercise) {
       setCompletedExercises((prev) => new Set(prev).add(currentExercise.id));
+
+      // Show pain modal
+      setPendingPainExercise(currentExercise);
+      setShowPainModal(true);
     }
   }, [staticAnalysis.currentExercise]);
 
@@ -200,20 +226,14 @@ const StaticCaptureView: React.FC = () => {
   }, [staticAnalysis.recording.isRecording, staticAnalysis.recording.frames.length, handleRecordingComplete]);
 
   /**
-   * Handle finish session (show pain modal)
-   */
-  const handleFinishSession = () => {
-    setShowPainModal(true);
-  };
-
-  /**
-   * Handle pain submission
+   * Handle pain submission and record assessment
    */
   const handlePainSubmit = (
     intensity: number,
     location: PainLocation,
     notes?: string
   ) => {
+    // Add to pain logging
     painLogging.addEntry(intensity, location, notes, {
       patternFlags: staticAnalysis.patternFlags,
       symmetry: staticAnalysis.staticMetrics?.asymmetry
@@ -224,6 +244,92 @@ const StaticCaptureView: React.FC = () => {
         : undefined,
       frontalMetrics: frontalAnalysis.aggregatedMetrics,
     });
+
+    // Record assessment result
+    if (pendingPainExercise) {
+      const painEntry: AssessmentPainEntry = {
+        intensity,
+        location,
+        notes,
+      };
+
+      assessment.recordExerciseResult(
+        pendingPainExercise,
+        staticAnalysis.currentAngles,
+        staticAnalysis.patternFlags,
+        staticAnalysis.staticMetrics,
+        staticAnalysis.recording.elapsedSeconds,
+        painEntry
+      );
+    }
+
+    setShowPainModal(false);
+    setPendingPainExercise(null);
+  };
+
+  /**
+   * Handle skip pain (still record assessment)
+   */
+  const handleSkipPain = () => {
+    if (pendingPainExercise) {
+      assessment.recordExerciseResult(
+        pendingPainExercise,
+        staticAnalysis.currentAngles,
+        staticAnalysis.patternFlags,
+        staticAnalysis.staticMetrics,
+        staticAnalysis.recording.elapsedSeconds
+      );
+    }
+    setShowPainModal(false);
+    setPendingPainExercise(null);
+  };
+
+  /**
+   * Handle finish session
+   */
+  const handleFinishSession = () => {
+    const session = assessment.endSession();
+    if (session) {
+      // Automatically download the session
+      downloadSessionAsJson(session);
+    }
+  };
+
+  /**
+   * Handle download current exercise JSON
+   */
+  const handleDownloadExerciseJson = () => {
+    const currentExercise = staticAnalysis.currentExercise;
+    if (!currentExercise) return;
+
+    const result = assessment.getExerciseResult(currentExercise.id);
+    if (result) {
+      const json = JSON.stringify(result, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `assessment_${currentExercise.id}_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  /**
+   * Handle clear exercise result (re-record)
+   */
+  const handleClearExerciseResult = () => {
+    const currentExercise = staticAnalysis.currentExercise;
+    if (currentExercise) {
+      assessment.clearExerciseResult(currentExercise.id);
+      setCompletedExercises((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(currentExercise.id);
+        return newSet;
+      });
+    }
   };
 
   /**
@@ -243,6 +349,7 @@ const StaticCaptureView: React.FC = () => {
   };
 
   const currentExercise = staticAnalysis.currentExercise;
+  const currentResult = currentExercise ? assessment.getExerciseResult(currentExercise.id) : undefined;
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
@@ -263,6 +370,7 @@ const StaticCaptureView: React.FC = () => {
               <h1 className="text-lg font-semibold text-white">Static Assessment</h1>
               <p className="text-xs text-gray-400">
                 {poseStatus === 'ready' ? 'Pose model ready' : 'Loading pose model...'}
+                {assessment.reportMode === 'per_exercise' && ' | Report per esercizio'}
               </p>
             </div>
           </div>
@@ -280,7 +388,7 @@ const StaticCaptureView: React.FC = () => {
                 className="px-3 py-1.5 text-sm text-white
                          bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors"
               >
-                Finish Session
+                Termina e Scarica Report
               </button>
             )}
           </div>
@@ -350,7 +458,10 @@ const StaticCaptureView: React.FC = () => {
                         <div className="text-9xl font-bold text-white animate-pulse">
                           {countdownValue}
                         </div>
-                        <div className="text-xl text-gray-300 mt-4">Get Ready...</div>
+                        <div className="text-xl text-gray-300 mt-4">Preparati...</div>
+                        <div className="text-sm text-gray-400 mt-2">
+                          Posizionati correttamente per l'esercizio
+                        </div>
                       </div>
                     </div>
                   )}
@@ -370,11 +481,11 @@ const StaticCaptureView: React.FC = () => {
                         <>
                           <div className="text-sm text-gray-400">
                             {completedExercises.has(currentExercise.id)
-                              ? 'Exercise completed. Select another or re-record.'
-                              : `Ready to record ${currentExercise.durationSeconds}s`}
+                              ? 'Assessment completato. Vedi risultati a destra o ripeti.'
+                              : 'Pronto per iniziare l\'assessment'}
                           </div>
                           <button
-                            onClick={handleStartRecording}
+                            onClick={handleStartAssessmentClick}
                             disabled={!isStreaming || poseStatus !== 'ready' || showCountdown}
                             className="px-4 py-2 text-sm text-white bg-purple-600
                                      hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed
@@ -383,14 +494,14 @@ const StaticCaptureView: React.FC = () => {
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                               <circle cx="10" cy="10" r="6" />
                             </svg>
-                            Start Recording
+                            Start Assessment
                           </button>
                         </>
                       )}
                     </div>
                   ) : (
                     <div className="text-center text-gray-400 text-sm">
-                      Select an exercise from the list to begin
+                      Seleziona un esercizio dalla lista per iniziare
                     </div>
                   )}
                 </div>
@@ -411,60 +522,76 @@ const StaticCaptureView: React.FC = () => {
               </div>
             </div>
 
-            {/* Side panel - Analysis results */}
+            {/* Side panel - Assessment results */}
             <div className="lg:col-span-1 space-y-4 h-[calc(100vh-180px)] overflow-y-auto">
-              {/* Pattern Badges */}
-              {isProcessing && Object.keys(staticAnalysis.patternFlags).length > 0 && (
-                <div className="card p-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">Detected Patterns</h3>
-                  <PatternSummary patterns={staticAnalysis.patternFlags} mode="static" />
-                  <div className="mt-2">
-                    <PatternBadges patterns={staticAnalysis.patternFlags} mode="static" compact={true} />
-                  </div>
-                </div>
+              {/* Assessment Summary Panel (when result exists) */}
+              {(currentResult || staticAnalysis.recording.isRecording) && (
+                <AssessmentSummaryPanel
+                  result={currentResult || null}
+                  onDownloadJson={currentResult ? handleDownloadExerciseJson : undefined}
+                  onClearResult={currentResult ? handleClearExerciseResult : undefined}
+                  isRecording={staticAnalysis.recording.isRecording}
+                />
               )}
 
-              {/* Metrics summary */}
-              {staticAnalysis.staticMetrics && (
-                <div className="card p-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">Stability Metrics</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Total Sway</span>
-                      <span className={`font-medium ${
-                        staticAnalysis.staticMetrics.comSway.swayTotal > 0.02
-                          ? 'text-yellow-400'
-                          : 'text-green-400'
-                      }`}>
-                        {(staticAnalysis.staticMetrics.comSway.swayTotal * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                    {staticAnalysis.staticMetrics.asymmetry.kneeAngleDiff !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Knee Asymmetry</span>
-                        <span className="text-white font-medium">
-                          {Math.abs(staticAnalysis.staticMetrics.asymmetry.kneeAngleDiff).toFixed(1)}°
-                        </span>
+              {/* Real-time analysis (when no result and not recording) */}
+              {!currentResult && !staticAnalysis.recording.isRecording && (
+                <>
+                  {/* Pattern Badges */}
+                  {isProcessing && Object.keys(staticAnalysis.patternFlags).length > 0 && (
+                    <div className="card p-4">
+                      <h3 className="text-sm font-medium text-gray-300 mb-3">Pattern in Tempo Reale</h3>
+                      <PatternSummary patterns={staticAnalysis.patternFlags} mode="static" />
+                      <div className="mt-2">
+                        <PatternBadges patterns={staticAnalysis.patternFlags} mode="static" compact={true} />
                       </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  )}
+
+                  {/* Metrics summary */}
+                  {staticAnalysis.staticMetrics && (
+                    <div className="card p-4">
+                      <h3 className="text-sm font-medium text-gray-300 mb-3">Metriche Stabilità</h3>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Total Sway</span>
+                          <span className={`font-medium ${
+                            staticAnalysis.staticMetrics.comSway.swayTotal > 0.02
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
+                          }`}>
+                            {(staticAnalysis.staticMetrics.comSway.swayTotal * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        {staticAnalysis.staticMetrics.asymmetry.kneeAngleDiff !== undefined && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Asimmetria Ginocchio</span>
+                            <span className="text-white font-medium">
+                              {Math.abs(staticAnalysis.staticMetrics.asymmetry.kneeAngleDiff).toFixed(1)}°
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary Panel */}
+                  <SummaryPanel
+                    suggestions={staticAnalysis.suggestions}
+                    muscleInsights={staticAnalysis.muscleInsights}
+                    isAnalyzing={isProcessing && isStreaming}
+                  />
+                </>
               )}
 
-              {/* Summary text */}
-              {staticAnalysis.summaryText && (
+              {/* Empty state */}
+              {!currentExercise && !currentResult && (
                 <div className="card p-4">
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Analysis Summary</h3>
-                  <p className="text-sm text-gray-400">{staticAnalysis.summaryText}</p>
+                  <p className="text-gray-400 text-sm text-center">
+                    Seleziona un esercizio per vedere l'analisi in tempo reale o i risultati dell'assessment.
+                  </p>
                 </div>
               )}
-
-              {/* Summary Panel */}
-              <SummaryPanel
-                suggestions={staticAnalysis.suggestions}
-                muscleInsights={staticAnalysis.muscleInsights}
-                isAnalyzing={isProcessing && isStreaming}
-              />
             </div>
           </div>
         </div>
@@ -473,14 +600,23 @@ const StaticCaptureView: React.FC = () => {
       {/* Footer */}
       <footer className="bg-gray-800 border-t border-gray-700 px-4 py-2 text-center text-xs text-gray-500">
         BiomechCoach - Static Assessment Mode | {currentExercise
-          ? `Position camera for ${currentExercise.view} view`
-          : 'Select an exercise to begin'}
+          ? `Posiziona la telecamera per vista ${currentExercise.view}`
+          : 'Seleziona un esercizio per iniziare'}
       </footer>
+
+      {/* Assessment Config Modal */}
+      <AssessmentConfigModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        onStart={handleStartAssessment}
+        initialConfig={assessment.config}
+        initialReportMode={assessment.reportMode}
+      />
 
       {/* Pain Input Modal */}
       <PainInputModal
         isOpen={showPainModal}
-        onClose={() => setShowPainModal(false)}
+        onClose={handleSkipPain}
         onSubmit={handlePainSubmit}
         sessionMetrics={{
           patternFlags: staticAnalysis.patternFlags as Record<string, boolean | undefined>,

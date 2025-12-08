@@ -361,9 +361,10 @@ export function useStaticAnalysis(
       if (recording.isRecording) {
         recordingFramesRef.current.push(frame);
 
-        // Update elapsed time
+        // Update elapsed time using performance.now() for consistency
         if (recording.startTime) {
-          const elapsed = (frame.timestamp - recording.startTime) / 1000;
+          const now = performance.now();
+          const elapsed = (now - recording.startTime) / 1000;
           setRecording((prev) => ({
             ...prev,
             elapsedSeconds: elapsed,
