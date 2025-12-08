@@ -247,7 +247,7 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
       ref={canvasRef}
       width={width}
       height={height}
-      className="absolute inset-0 w-full h-full transform scale-x-[-1]"
+      className="absolute inset-0 w-full h-full"
     />
   );
 };
