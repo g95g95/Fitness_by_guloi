@@ -10,11 +10,15 @@ import {
   PoseFrame,
   AngleStats,
   AngleName,
-  AnalysisSummary,
   Suggestion,
   MuscleInsight,
   CyclingThresholds,
   DEFAULT_CYCLING_THRESHOLDS,
+  CyclingPatternFlags,
+  SymmetryMetrics,
+  FrontalMetrics,
+  ExtendedAnalysisSummary,
+  ViewType,
 } from '../lib/poseTypes';
 import {
   angleBetweenPoints,
@@ -30,6 +34,11 @@ import {
   generateCyclingSuggestions,
   generateCyclingMuscleInsights,
 } from '../lib/cyclingHeuristics';
+import {
+  detectCyclingPatterns,
+  generateCyclingPatternSuggestions,
+} from '../lib/patterns/cyclingPatterns';
+import { computeSymmetryMetrics } from '../lib/symmetry';
 
 /**
  * Configuration for cycling analysis
@@ -84,9 +93,15 @@ export interface UseCyclingAnalysisReturn {
   /** Reset all analysis data */
   reset: () => void;
   /** Get full analysis summary */
-  getSummary: () => AnalysisSummary;
+  getSummary: () => ExtendedAnalysisSummary;
   /** Analysis duration in ms */
   duration: number;
+  /** Detected pattern flags */
+  patternFlags: CyclingPatternFlags;
+  /** Symmetry metrics */
+  symmetryMetrics: SymmetryMetrics;
+  /** Update frontal metrics from front view analysis */
+  setFrontalMetrics: (metrics: FrontalMetrics | null) => void;
 }
 
 /**
@@ -114,6 +129,11 @@ export function useCyclingAnalysis(
   const [muscleInsights, setMuscleInsights] = useState<MuscleInsight[]>([]);
   const [cycleCount, setCycleCount] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
+
+  // New state for pattern detection and symmetry
+  const [patternFlags, setPatternFlags] = useState<CyclingPatternFlags>({});
+  const [symmetryMetrics, setSymmetryMetrics] = useState<SymmetryMetrics>({});
+  const [frontalMetrics, setFrontalMetricsState] = useState<FrontalMetrics | null>(null);
 
   // Refs for internal buffers
   const angleBuffersRef = useRef<Record<string, (number | null)[]>>({
@@ -349,11 +369,39 @@ export function useCyclingAnalysis(
       // Update stats periodically (every 5 frames to reduce computation)
       if (frameCountRef.current % 5 === 0) {
         const stats = updateStats();
-        setSuggestions(generateCyclingSuggestions(stats, finalConfig.thresholds));
+
+        // Generate basic suggestions
+        const baseSuggestions = generateCyclingSuggestions(stats, finalConfig.thresholds);
+
+        // Detect patterns and generate pattern-based suggestions
+        const patterns = detectCyclingPatterns(stats, frontalMetrics);
+        setPatternFlags(patterns);
+
+        const patternSuggestions = generateCyclingPatternSuggestions(patterns);
+
+        // Merge suggestions (avoid duplicates by ID)
+        const allSuggestions = [...baseSuggestions];
+        for (const ps of patternSuggestions) {
+          if (!allSuggestions.some((s) => s.id === ps.id)) {
+            allSuggestions.push(ps);
+          }
+        }
+        setSuggestions(allSuggestions);
+
+        // Compute symmetry metrics
+        const symmetry = computeSymmetryMetrics(
+          stats['left_hip_angle'] || null,
+          stats['right_hip_angle'] || null,
+          stats['left_knee_flexion'] || null,
+          stats['right_knee_flexion'] || null,
+          frontalMetrics
+        );
+        setSymmetryMetrics(symmetry);
+
         setMuscleInsights(generateCyclingMuscleInsights(stats));
       }
     },
-    [computeAngles, detectBdc, updateStats, finalConfig]
+    [computeAngles, detectBdc, updateStats, finalConfig, frontalMetrics]
   );
 
   /**
@@ -392,12 +440,20 @@ export function useCyclingAnalysis(
     setMuscleInsights([]);
     setCycleCount(0);
     setDuration(0);
+    setPatternFlags({});
+    setSymmetryMetrics({});
+    setFrontalMetricsState(null);
   }, []);
 
   /**
-   * Get full analysis summary
+   * Get full analysis summary (extended)
    */
-  const getSummary = useCallback((): AnalysisSummary => {
+  const getSummary = useCallback((): ExtendedAnalysisSummary => {
+    const viewsUsed: ViewType[] = ['side'];
+    if (frontalMetrics) {
+      viewsUsed.push('front');
+    }
+
     return {
       mode: 'cycling',
       duration,
@@ -405,8 +461,19 @@ export function useCyclingAnalysis(
       suggestions,
       muscleInsights,
       cycleCount,
+      pattern_flags: patternFlags,
+      symmetry: symmetryMetrics,
+      frontal_metrics: frontalMetrics || undefined,
+      views_used: viewsUsed,
     };
-  }, [duration, angleStats, suggestions, muscleInsights, cycleCount]);
+  }, [duration, angleStats, suggestions, muscleInsights, cycleCount, patternFlags, symmetryMetrics, frontalMetrics]);
+
+  /**
+   * Set frontal metrics from external frontal analysis
+   */
+  const setFrontalMetrics = useCallback((metrics: FrontalMetrics | null) => {
+    setFrontalMetricsState(metrics);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -425,6 +492,9 @@ export function useCyclingAnalysis(
     reset,
     getSummary,
     duration,
+    patternFlags,
+    symmetryMetrics,
+    setFrontalMetrics,
   };
 }
 
