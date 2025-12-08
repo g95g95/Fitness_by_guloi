@@ -8,6 +8,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ModeSelector from './components/ModeSelector';
 import CaptureView from './components/CaptureView';
+import StaticCaptureView from './components/StaticCaptureView';
 
 /**
  * Main App Component
@@ -24,6 +25,9 @@ const App: React.FC = () => {
 
         {/* Running analysis view */}
         <Route path="/running" element={<CaptureView mode="running" />} />
+
+        {/* Static assessment view */}
+        <Route path="/static" element={<StaticCaptureView />} />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

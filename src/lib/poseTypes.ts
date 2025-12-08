@@ -115,7 +115,7 @@ export interface AngleStats {
 /**
  * Activity modes supported by BiomechCoach
  */
-export type ActivityMode = 'cycling' | 'running';
+export type ActivityMode = 'cycling' | 'running' | 'static';
 
 /**
  * Suggestion severity levels
@@ -463,3 +463,147 @@ export const DEFAULT_FRONTAL_THRESHOLDS: FrontalThresholds = {
   ankleMedialDriftThreshold: 0.02, // 2% of frame width
   kneeLateralDeviationThreshold: 0.03, // 3% of frame width
 };
+
+// ============================================================================
+// STATIC MODE TYPES
+// ============================================================================
+
+/**
+ * Static exercise definition
+ */
+export interface StaticExercise {
+  /** Unique identifier for the exercise */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Short description for the exercise */
+  description: string;
+  /** Preferred camera view */
+  view: 'front' | 'side' | 'either';
+  /** Default duration in seconds */
+  durationSeconds: number;
+  /** Joint areas to focus on during analysis */
+  focusJoints: string[];
+  /** Category for grouping exercises */
+  category: 'balance' | 'squat' | 'lunge' | 'heel_raise' | 'hinge' | 'stance';
+}
+
+/**
+ * Static session data structure
+ */
+export interface StaticSession {
+  /** ID of the exercise being performed */
+  exerciseId: string;
+  /** Mode identifier */
+  mode: 'static';
+  /** Camera view used */
+  view: 'front' | 'side' | 'either';
+  /** Session start timestamp */
+  startTimestamp: number;
+  /** Duration in seconds */
+  durationSeconds: number;
+  /** Captured pose frames */
+  frames: PoseFrame[];
+}
+
+/**
+ * Pattern flags for static assessment
+ */
+export interface StaticPatternFlags {
+  /** Excessive sway/wobble during stance */
+  static_instability?: boolean;
+  /** Pelvis drops on unsupported side during single-leg stance */
+  static_hip_drop?: boolean;
+  /** Knee collapses inward during squat/lunge/stance */
+  static_knee_valgus?: boolean;
+  /** Trunk leans to compensate for weakness/imbalance */
+  static_trunk_compensation?: boolean;
+  /** Left/right differences in position or range */
+  static_asymmetry?: boolean;
+  /** Ankle rolls inward (pronation) */
+  static_ankle_pronation?: boolean;
+}
+
+/**
+ * Static analysis metrics
+ */
+export interface StaticMetrics {
+  /** Mean angle values during the session */
+  meanAngles: Record<string, number>;
+  /** Standard deviation of angles (variability/wobble) */
+  angleVariability: Record<string, number>;
+  /** Center of mass proxy sway (using mid-hip point) */
+  comSway: {
+    swayX: number;    // horizontal sway (std dev)
+    swayY: number;    // vertical sway (std dev)
+    swayTotal: number; // total sway magnitude
+  };
+  /** Left/right asymmetry metrics */
+  asymmetry: {
+    kneeAngleDiff?: number;
+    hipHeightDiff?: number;
+    shoulderHeightDiff?: number;
+    anklePositionDiff?: number;
+  };
+  /** Detected pattern flags */
+  patternFlags: StaticPatternFlags;
+}
+
+/**
+ * Static analysis thresholds
+ */
+export interface StaticThresholds {
+  /** CoM sway threshold for instability flag (normalized) */
+  swayThreshold: number;
+  /** Hip drop threshold (normalized Y difference) */
+  hipDropThreshold: number;
+  /** Knee valgus threshold (degrees) */
+  kneeValgusThreshold: number;
+  /** Trunk lean threshold for compensation flag (degrees) */
+  trunkCompensationThreshold: number;
+  /** Angle difference threshold for asymmetry flag (degrees) */
+  asymmetryThreshold: number;
+  /** Angle variability threshold (degrees std dev) */
+  variabilityThreshold: number;
+}
+
+/**
+ * Default static analysis thresholds
+ */
+export const DEFAULT_STATIC_THRESHOLDS: StaticThresholds = {
+  swayThreshold: 0.02,           // 2% of frame dimension
+  hipDropThreshold: 0.03,        // 3% of frame height
+  kneeValgusThreshold: 10,       // 10 degrees
+  trunkCompensationThreshold: 8, // 8 degrees from vertical
+  asymmetryThreshold: 5,         // 5 degrees difference
+  variabilityThreshold: 5,       // 5 degrees standard deviation
+};
+
+/**
+ * Extended analysis summary with static mode support
+ */
+export interface StaticAnalysisSummary extends AnalysisSummary {
+  /** Exercise info for static mode */
+  static_exercise?: {
+    id: string;
+    name: string;
+  };
+  /** Static-specific metrics */
+  static_metrics?: StaticMetrics;
+  /** Pattern flags (including static flags) */
+  pattern_flags?: PatternFlags & StaticPatternFlags;
+  /** Symmetry metrics */
+  symmetry?: SymmetryMetrics;
+  /** Frontal plane metrics */
+  frontal_metrics?: FrontalMetrics;
+  /** View types used */
+  views_used?: ViewType[];
+}
+
+/**
+ * Updated PainEntry to support static mode
+ */
+export interface StaticPainEntry extends PainEntry {
+  /** Exercise ID for static mode sessions */
+  exerciseId?: string;
+}

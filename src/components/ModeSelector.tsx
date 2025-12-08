@@ -22,29 +22,49 @@ interface ModeCardProps {
   description: string;
   icon: React.ReactNode;
   onClick: () => void;
+  accentColor?: string;
 }
 
-const ModeCard: React.FC<ModeCardProps> = ({ title, description, icon, onClick }) => {
+const ModeCard: React.FC<ModeCardProps> = ({ title, description, icon, onClick, accentColor = 'biomech' }) => {
+  const colorClasses = {
+    biomech: {
+      border: 'hover:border-biomech-500',
+      bg: 'bg-biomech-500/10 group-hover:bg-biomech-500/20',
+      text: 'text-biomech-400 group-hover:text-biomech-300',
+      ring: 'focus:ring-biomech-500',
+      arrow: 'group-hover:text-biomech-400',
+    },
+    purple: {
+      border: 'hover:border-purple-500',
+      bg: 'bg-purple-500/10 group-hover:bg-purple-500/20',
+      text: 'text-purple-400 group-hover:text-purple-300',
+      ring: 'focus:ring-purple-500',
+      arrow: 'group-hover:text-purple-400',
+    },
+  };
+
+  const colors = colorClasses[accentColor as keyof typeof colorClasses] || colorClasses.biomech;
+
   return (
     <button
       onClick={onClick}
-      className="group relative w-full max-w-sm p-8 bg-gray-800 hover:bg-gray-750
-                 border border-gray-700 hover:border-biomech-500 rounded-2xl
+      className={`group relative w-full max-w-sm p-8 bg-gray-800 hover:bg-gray-750
+                 border border-gray-700 ${colors.border} rounded-2xl
                  transition-all duration-300 transform hover:scale-[1.02]
-                 focus:outline-none focus:ring-2 focus:ring-biomech-500 focus:ring-offset-2
-                 focus:ring-offset-gray-900"
+                 focus:outline-none focus:ring-2 ${colors.ring} focus:ring-offset-2
+                 focus:ring-offset-gray-900`}
     >
       {/* Icon */}
-      <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-biomech-500/10
-                    flex items-center justify-center group-hover:bg-biomech-500/20
-                    transition-colors duration-300">
-        <div className="text-biomech-400 group-hover:text-biomech-300 transition-colors">
+      <div className={`w-20 h-20 mx-auto mb-6 rounded-full ${colors.bg}
+                    flex items-center justify-center
+                    transition-colors duration-300`}>
+        <div className={`${colors.text} transition-colors`}>
           {icon}
         </div>
       </div>
 
       {/* Title */}
-      <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-biomech-300 transition-colors">
+      <h3 className={`text-2xl font-bold text-white mb-3 ${colors.text} transition-colors`}>
         {title}
       </h3>
 
@@ -52,7 +72,7 @@ const ModeCard: React.FC<ModeCardProps> = ({ title, description, icon, onClick }
       <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
 
       {/* Arrow indicator */}
-      <div className="mt-6 text-gray-500 group-hover:text-biomech-400 transition-colors">
+      <div className={`mt-6 text-gray-500 ${colors.arrow} transition-colors`}>
         <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -107,13 +127,13 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ onSelect }) => {
 
         {/* Tagline */}
         <p className="text-gray-400 text-lg max-w-md mx-auto">
-          Real-time biomechanical analysis for cyclists and runners.
+          Real-time biomechanical analysis for cyclists, runners, and static assessments.
           Improve your form with AI-powered insights.
         </p>
       </div>
 
       {/* Mode Selection Cards */}
-      <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full max-w-3xl justify-center">
+      <div className="flex flex-col md:flex-row flex-wrap gap-6 md:gap-8 w-full max-w-5xl justify-center">
         <ModeCard
           mode="cycling"
           title="Cycling"
@@ -150,6 +170,35 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ onSelect }) => {
                 strokeWidth="1.5"
                 d="M4 20l4-4 3-1 3-4-2-2-4 1-2 4m10-4l3 3v5m-3-8l-4 4"
               />
+            </svg>
+          }
+        />
+
+        <ModeCard
+          mode="static"
+          title="Static Assessment"
+          description="Perform 20 postural and control tests. Assess balance, stability, and movement quality with exercises like squats, single-leg stance, and more."
+          onClick={() => handleSelectMode('static')}
+          accentColor="purple"
+          icon={
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Standing person with balance indicator */}
+              <circle cx="12" cy="4" r="2" strokeWidth="1.5" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+                d="M12 6v8m-3 0l3 6 3-6m-6 0h6"
+              />
+              {/* Balance/stability arc */}
+              <path
+                strokeLinecap="round"
+                strokeWidth="1.5"
+                d="M6 22c0-3.3 2.7-6 6-6s6 2.7 6 6"
+              />
+              {/* Small stability markers */}
+              <circle cx="6" cy="22" r="1" fill="currentColor" />
+              <circle cx="18" cy="22" r="1" fill="currentColor" />
             </svg>
           }
         />

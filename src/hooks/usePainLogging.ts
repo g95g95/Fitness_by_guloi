@@ -14,6 +14,7 @@ import {
   PainLocation,
   PainCorrelation,
   PatternFlags,
+  StaticPatternFlags,
   SymmetryMetrics,
   FrontalMetrics,
 } from '../lib/poseTypes';
@@ -50,10 +51,11 @@ export interface UsePainLoggingReturn {
     location: PainLocation,
     notes?: string,
     sessionMetrics?: {
-      patternFlags?: PatternFlags;
+      patternFlags?: PatternFlags | StaticPatternFlags;
       symmetry?: SymmetryMetrics;
       frontalMetrics?: FrontalMetrics;
-    }
+    },
+    exerciseId?: string
   ) => void;
   /** Remove an entry by ID */
   removeEntry: (id: string) => void;
@@ -124,18 +126,20 @@ export function usePainLogging(): UsePainLoggingReturn {
       location: PainLocation,
       notes?: string,
       sessionMetrics?: {
-        patternFlags?: PatternFlags;
+        patternFlags?: PatternFlags | StaticPatternFlags;
         symmetry?: SymmetryMetrics;
         frontalMetrics?: FrontalMetrics;
-      }
+      },
+      exerciseId?: string
     ) => {
-      const newEntry: PainEntry = {
+      const newEntry: PainEntry & { exerciseId?: string } = {
         id: generateId(),
         timestamp: Date.now(),
         intensity: Math.max(0, Math.min(10, intensity)), // Clamp 0-10
         location,
         notes,
-        sessionMetrics,
+        sessionMetrics: sessionMetrics as PainEntry['sessionMetrics'],
+        exerciseId,
       };
 
       setEntries((prev) => {
@@ -190,25 +194,41 @@ export function usePainLogging(): UsePainLoggingReturn {
     }
 
     // Count pattern occurrences in high vs low pain sessions
-    const patterns: (keyof PatternFlags)[] = [
+    // Include both dynamic (running/cycling) and static patterns
+    const patterns: (keyof PatternFlags | keyof StaticPatternFlags)[] = [
+      // Running patterns
       'overstride',
       'hip_drop',
       'knee_valgus',
       'pronation',
       'limited_hip_extension',
       'excessive_trunk_lean',
+      // Cycling patterns
       'saddle_low',
       'saddle_high',
       'knee_tracking_instability',
+      // Static patterns
+      'static_instability',
+      'static_hip_drop',
+      'static_knee_valgus',
+      'static_trunk_compensation',
+      'static_asymmetry',
+      'static_ankle_pronation',
     ];
 
     for (const pattern of patterns) {
       const highPainCount = highPainEntries.filter(
-        (e) => e.sessionMetrics?.patternFlags?.[pattern] === true
+        (e) => {
+          const flags = e.sessionMetrics?.patternFlags as Record<string, boolean> | undefined;
+          return flags?.[pattern] === true;
+        }
       ).length;
 
       const lowPainCount = lowPainEntries.filter(
-        (e) => e.sessionMetrics?.patternFlags?.[pattern] === true
+        (e) => {
+          const flags = e.sessionMetrics?.patternFlags as Record<string, boolean> | undefined;
+          return flags?.[pattern] === true;
+        }
       ).length;
 
       // Calculate occurrence rates
@@ -227,7 +247,7 @@ export function usePainLogging(): UsePainLoggingReturn {
         }
 
         correlations.push({
-          pattern,
+          pattern: pattern as keyof PatternFlags,
           highPainOccurrence: highPainRate,
           lowPainOccurrence: lowPainRate,
           correlationStrength: strength,

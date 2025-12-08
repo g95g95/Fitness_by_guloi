@@ -6,13 +6,13 @@
  */
 
 import React from 'react';
-import { PatternFlags, RunningPatternFlags, CyclingPatternFlags } from '../lib/poseTypes';
+import { PatternFlags, RunningPatternFlags, CyclingPatternFlags, StaticPatternFlags } from '../lib/poseTypes';
 
 interface PatternBadgesProps {
   /** Pattern flags to display */
-  patterns: PatternFlags;
+  patterns: PatternFlags | StaticPatternFlags;
   /** Activity mode for context-appropriate display */
-  mode: 'cycling' | 'running';
+  mode: 'cycling' | 'running' | 'static';
   /** Compact display mode */
   compact?: boolean;
 }
@@ -100,6 +100,48 @@ const CYCLING_PATTERNS: Record<keyof CyclingPatternFlags, PatternConfig> = {
 };
 
 /**
+ * Static assessment pattern configurations
+ */
+const STATIC_PATTERNS: Record<keyof StaticPatternFlags, PatternConfig> = {
+  static_instability: {
+    label: 'Balance Instability',
+    shortLabel: 'Unstable',
+    color: 'orange',
+    icon: '⚖️',
+  },
+  static_hip_drop: {
+    label: 'Pelvic Drop',
+    shortLabel: 'Hip Drop',
+    color: 'orange',
+    icon: '⬇️',
+  },
+  static_knee_valgus: {
+    label: 'Knee Valgus',
+    shortLabel: 'Valgus',
+    color: 'red',
+    icon: '🦵',
+  },
+  static_trunk_compensation: {
+    label: 'Trunk Compensation',
+    shortLabel: 'Trunk',
+    color: 'yellow',
+    icon: '🧍',
+  },
+  static_asymmetry: {
+    label: 'Left/Right Asymmetry',
+    shortLabel: 'Asymmetry',
+    color: 'yellow',
+    icon: '↔️',
+  },
+  static_ankle_pronation: {
+    label: 'Ankle Pronation',
+    shortLabel: 'Pronation',
+    color: 'yellow',
+    icon: '🦶',
+  },
+};
+
+/**
  * Color class mappings
  */
 const COLOR_CLASSES: Record<string, string> = {
@@ -161,13 +203,23 @@ const PatternBadges: React.FC<PatternBadgesProps> = ({
         });
       }
     }
-  } else {
+  } else if (mode === 'cycling') {
     const cyclingKeys = Object.keys(CYCLING_PATTERNS) as (keyof CyclingPatternFlags)[];
     for (const key of cyclingKeys) {
       if ((patterns as CyclingPatternFlags)[key]) {
         activePatterns.push({
           key,
           config: CYCLING_PATTERNS[key],
+        });
+      }
+    }
+  } else if (mode === 'static') {
+    const staticKeys = Object.keys(STATIC_PATTERNS) as (keyof StaticPatternFlags)[];
+    for (const key of staticKeys) {
+      if ((patterns as StaticPatternFlags)[key]) {
+        activePatterns.push({
+          key,
+          config: STATIC_PATTERNS[key],
         });
       }
     }
@@ -191,17 +243,20 @@ const PatternBadges: React.FC<PatternBadgesProps> = ({
  * Summary section showing pattern count
  */
 export const PatternSummary: React.FC<{
-  patterns: PatternFlags;
-  mode: 'cycling' | 'running';
+  patterns: PatternFlags | StaticPatternFlags;
+  mode: 'cycling' | 'running' | 'static';
 }> = ({ patterns, mode }) => {
   let count = 0;
 
   if (mode === 'running') {
     const runningKeys = Object.keys(RUNNING_PATTERNS) as (keyof RunningPatternFlags)[];
     count = runningKeys.filter((key) => (patterns as RunningPatternFlags)[key]).length;
-  } else {
+  } else if (mode === 'cycling') {
     const cyclingKeys = Object.keys(CYCLING_PATTERNS) as (keyof CyclingPatternFlags)[];
     count = cyclingKeys.filter((key) => (patterns as CyclingPatternFlags)[key]).length;
+  } else if (mode === 'static') {
+    const staticKeys = Object.keys(STATIC_PATTERNS) as (keyof StaticPatternFlags)[];
+    count = staticKeys.filter((key) => (patterns as StaticPatternFlags)[key]).length;
   }
 
   if (count === 0) {
