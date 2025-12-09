@@ -13,7 +13,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StaticExercise, PainLocation } from '../lib/poseTypes';
 import { getExerciseInstructions } from '../lib/staticExercises';
-import { AssessmentConfig, AssessmentReportMode, AssessmentPainEntry, downloadSessionAsJson } from '../lib/assessmentTypes';
+import { AssessmentConfig, AssessmentReportMode, AssessmentPainEntry, downloadSessionAsJson, downloadSessionAsPdf } from '../lib/assessmentTypes';
 import useCameraStream from '../hooks/useCameraStream';
 import usePoseEstimation from '../hooks/usePoseEstimation';
 import useStaticAnalysis from '../hooks/useStaticAnalysis';
@@ -318,6 +318,40 @@ const StaticCaptureView: React.FC = () => {
   };
 
   /**
+   * Handle download current exercise as PDF
+   */
+  const handleDownloadExercisePdf = () => {
+    const currentExercise = staticAnalysis.currentExercise;
+    if (!currentExercise) return;
+
+    const result = assessment.getExerciseResult(currentExercise.id);
+    if (result) {
+      // Create a mini session with just this exercise for PDF export
+      const miniSession = {
+        sessionId: `single_${currentExercise.id}_${Date.now()}`,
+        startTimestamp: result.timestamp,
+        endTimestamp: Date.now(),
+        mode: 'single' as const,
+        version: '1.0.0',
+        exercises: [result],
+        globalRecommendations: {
+          priorityExercises: result.recommendations.exercises,
+          musclesFocus: result.recommendations.muscles,
+          patternsFocus: result.recommendations.patterns,
+        },
+        sessionSummary: {
+          exercisesCompleted: 1,
+          averageScore: result.score,
+          commonIssues: [],
+          strengths: [],
+          areasForImprovement: [],
+        },
+      };
+      downloadSessionAsPdf(miniSession);
+    }
+  };
+
+  /**
    * Handle clear exercise result (re-record)
    */
   const handleClearExerciseResult = () => {
@@ -529,6 +563,7 @@ const StaticCaptureView: React.FC = () => {
                 <AssessmentSummaryPanel
                   result={currentResult || null}
                   onDownloadJson={currentResult ? handleDownloadExerciseJson : undefined}
+                  onDownloadPdf={currentResult ? handleDownloadExercisePdf : undefined}
                   onClearResult={currentResult ? handleClearExerciseResult : undefined}
                   isRecording={staticAnalysis.recording.isRecording}
                 />

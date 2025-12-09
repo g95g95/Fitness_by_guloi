@@ -9,6 +9,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ModeSelector from './components/ModeSelector';
 import CaptureView from './components/CaptureView';
 import StaticCaptureView from './components/StaticCaptureView';
+import RunningCaptureView from './components/RunningCaptureView';
 
 /**
  * Main App Component
@@ -24,7 +25,7 @@ const App: React.FC = () => {
         <Route path="/cycling" element={<CaptureView mode="cycling" />} />
 
         {/* Running analysis view */}
-        <Route path="/running" element={<CaptureView mode="running" />} />
+        <Route path="/running" element={<RunningCaptureView />} />
 
         {/* Static assessment view */}
         <Route path="/static" element={<StaticCaptureView />} />

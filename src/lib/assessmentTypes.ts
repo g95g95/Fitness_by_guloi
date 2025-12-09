@@ -333,4 +333,283 @@ export function downloadSessionAsJson(session: AssessmentSession, filename?: str
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Format date for PDF display
+ */
+function formatDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Get status label in Italian
+ */
+function getStatusLabel(status: ExerciseAssessmentResult['status']): string {
+  const labels = {
+    excellent: 'Eccellente',
+    good: 'Buono',
+    fair: 'Discreto',
+    needs_work: 'Da migliorare',
+  };
+  return labels[status];
+}
+
+/**
+ * Generate HTML content for PDF
+ */
+function generatePdfHtml(session: AssessmentSession): string {
+  const exercisesHtml = session.exercises
+    .map(
+      (ex) => `
+      <div class="exercise">
+        <h3>${ex.exerciseName}</h3>
+        <div class="score-row">
+          <span class="score">${ex.score}/100</span>
+          <span class="status status-${ex.status}">${getStatusLabel(ex.status)}</span>
+        </div>
+        <p class="summary">${ex.summary}</p>
+
+        ${
+          ex.angleDeviations.length > 0
+            ? `
+          <div class="section">
+            <h4>Angoli Misurati</h4>
+            <table>
+              <tr><th>Angolo</th><th>Misurato</th><th>Ideale</th><th>Deviazione</th></tr>
+              ${ex.angleDeviations
+                .map(
+                  (d) => `
+                <tr>
+                  <td>${d.angleName}</td>
+                  <td>${d.measured.toFixed(1)}°</td>
+                  <td>${d.ideal}°</td>
+                  <td>${d.deviation > 0 ? '+' : ''}${d.deviation.toFixed(1)}°</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </table>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          ex.asymmetries.length > 0
+            ? `
+          <div class="section">
+            <h4>Asimmetrie</h4>
+            <ul>
+              ${ex.asymmetries.map((a) => `<li>${a.description} (Diff: ${a.difference.toFixed(1)})</li>`).join('')}
+            </ul>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          ex.recommendations.exercises.length > 0
+            ? `
+          <div class="section">
+            <h4>Esercizi Consigliati</h4>
+            <ul>
+              ${ex.recommendations.exercises.map((r) => `<li><strong>${r.exercise}</strong>: ${r.reason}</li>`).join('')}
+            </ul>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          ex.recommendations.muscles.length > 0
+            ? `
+          <div class="section">
+            <h4>Muscoli da Rafforzare</h4>
+            <ul>
+              ${ex.recommendations.muscles.map((r) => `<li><strong>${r.muscle}</strong>: ${r.reason}</li>`).join('')}
+            </ul>
+          </div>
+        `
+            : ''
+        }
+
+        ${
+          ex.probablePains && ex.probablePains.length > 0
+            ? `
+          <div class="section warning">
+            <h4>Dolori Probabili</h4>
+            <ul>
+              ${ex.probablePains.map((p) => `<li><strong>${p.location}</strong> (${p.probability}): ${p.reason}</li>`).join('')}
+            </ul>
+          </div>
+        `
+            : ''
+        }
+      </div>
+    `
+    )
+    .join('<hr>');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>BiomechCoach - Report Assessment</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #333;
+          padding: 20px;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 2px solid #6366f1;
+        }
+        .header h1 { color: #6366f1; font-size: 24px; margin-bottom: 5px; }
+        .header .date { color: #666; }
+        .summary-box {
+          background: #f3f4f6;
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+        }
+        .summary-box h2 { font-size: 16px; margin-bottom: 10px; }
+        .summary-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #6366f1; }
+        .stat-label { font-size: 11px; color: #666; }
+        .exercise {
+          margin-bottom: 25px;
+          page-break-inside: avoid;
+        }
+        .exercise h3 {
+          font-size: 14px;
+          color: #1f2937;
+          margin-bottom: 8px;
+          padding-bottom: 5px;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .score { font-size: 18px; font-weight: bold; }
+        .status {
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+        .status-excellent { background: #d1fae5; color: #059669; }
+        .status-good { background: #dbeafe; color: #2563eb; }
+        .status-fair { background: #fef3c7; color: #d97706; }
+        .status-needs_work { background: #fee2e2; color: #dc2626; }
+        .summary { color: #4b5563; margin-bottom: 10px; }
+        .section { margin: 10px 0; }
+        .section h4 { font-size: 12px; color: #6366f1; margin-bottom: 5px; }
+        .section.warning h4 { color: #dc2626; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { padding: 5px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-weight: 600; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 3px; }
+        hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+        .footer {
+          margin-top: 30px;
+          padding-top: 15px;
+          border-top: 1px solid #e5e7eb;
+          text-align: center;
+          font-size: 10px;
+          color: #9ca3af;
+        }
+        @media print {
+          body { padding: 0; }
+          .exercise { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>BiomechCoach Assessment Report</h1>
+        <div class="date">${formatDate(session.startTimestamp)}</div>
+      </div>
+
+      <div class="summary-box">
+        <h2>Riepilogo Sessione</h2>
+        <div class="summary-stats">
+          <div class="stat">
+            <div class="stat-value">${session.sessionSummary.exercisesCompleted}</div>
+            <div class="stat-label">Esercizi</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">${session.sessionSummary.averageScore.toFixed(0)}</div>
+            <div class="stat-label">Punteggio Medio</div>
+          </div>
+        </div>
+        ${
+          session.sessionSummary.commonIssues.length > 0
+            ? `
+          <div style="margin-top: 10px;">
+            <strong>Problemi comuni:</strong> ${session.sessionSummary.commonIssues.join(', ')}
+          </div>
+        `
+            : ''
+        }
+        ${
+          session.sessionSummary.areasForImprovement.length > 0
+            ? `
+          <div style="margin-top: 5px;">
+            <strong>Aree di miglioramento:</strong> ${session.sessionSummary.areasForImprovement.join(', ')}
+          </div>
+        `
+            : ''
+        }
+      </div>
+
+      <h2 style="margin-bottom: 15px;">Dettaglio Esercizi</h2>
+      ${exercisesHtml}
+
+      <div class="footer">
+        <p>Report generato da BiomechCoach - ${new Date().toISOString()}</p>
+        <p>Questo report non sostituisce una valutazione medica professionale.</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Download session as PDF file
+ */
+export function downloadSessionAsPdf(session: AssessmentSession): void {
+  const html = generatePdfHtml(session);
+  const printWindow = window.open('', '_blank');
+
+  if (!printWindow) {
+    alert('Impossibile aprire la finestra di stampa. Controlla il blocco popup del browser.');
+    return;
+  }
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  // Wait for content to load, then trigger print
+  printWindow.onload = () => {
+    printWindow.print();
+  };
+
+  // Fallback: trigger print after a short delay
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}
+
 export default AssessmentSession;

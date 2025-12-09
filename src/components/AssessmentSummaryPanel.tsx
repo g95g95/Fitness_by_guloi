@@ -13,6 +13,7 @@ import { PredictedPain } from '../lib/painPrediction';
 interface AssessmentSummaryPanelProps {
   result: ExerciseAssessmentResult | null;
   onDownloadJson?: () => void;
+  onDownloadPdf?: () => void;
   onClearResult?: () => void;
   isRecording?: boolean;
 }
@@ -212,6 +213,7 @@ const CollapsibleSection: React.FC<{
 const AssessmentSummaryPanel: React.FC<AssessmentSummaryPanelProps> = ({
   result,
   onDownloadJson,
+  onDownloadPdf,
   onClearResult,
   isRecording,
 }) => {
@@ -501,7 +503,18 @@ const AssessmentSummaryPanel: React.FC<AssessmentSummaryPanelProps> = ({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            Scarica JSON
+            JSON
+          </button>
+        )}
+        {onDownloadPdf && (
+          <button
+            onClick={onDownloadPdf}
+            className="flex-1 px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            PDF
           </button>
         )}
         {onClearResult && (

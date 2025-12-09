@@ -378,8 +378,8 @@ export function useStaticAnalysis(
         }
       }
 
-      // Update stats periodically
-      if (frameCountRef.current % finalConfig.updateInterval === 0) {
+      // Update stats periodically - ONLY during recording
+      if (recording.isRecording && frameCountRef.current % finalConfig.updateInterval === 0) {
         const stats = updateStats();
 
         // Compute static metrics
