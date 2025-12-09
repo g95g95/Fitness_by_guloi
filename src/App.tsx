@@ -7,7 +7,9 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ModeSelector from './components/ModeSelector';
+import CyclingModeSelector from './components/CyclingModeSelector';
 import CyclingCaptureView from './components/CyclingCaptureView';
+import CyclingStaticCaptureView from './components/CyclingStaticCaptureView';
 import StaticCaptureView from './components/StaticCaptureView';
 import RunningCaptureView from './components/RunningCaptureView';
 
@@ -21,13 +23,19 @@ const App: React.FC = () => {
         {/* Landing page - mode selection */}
         <Route path="/" element={<ModeSelector />} />
 
-        {/* Cycling analysis view - 4 test workflow */}
-        <Route path="/cycling" element={<CyclingCaptureView />} />
+        {/* Cycling mode selector - static vs dynamic */}
+        <Route path="/cycling" element={<CyclingModeSelector />} />
+
+        {/* Cycling dynamic analysis - 4 test workflow */}
+        <Route path="/cycling/dynamic" element={<CyclingCaptureView />} />
+
+        {/* Cycling static analysis - 2 step saddle height */}
+        <Route path="/cycling/static" element={<CyclingStaticCaptureView />} />
 
         {/* Running analysis view */}
         <Route path="/running" element={<RunningCaptureView />} />
 
-        {/* Static assessment view */}
+        {/* Static assessment view (postural) */}
         <Route path="/static" element={<StaticCaptureView />} />
 
         {/* Catch all - redirect to home */}
