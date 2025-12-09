@@ -767,3 +767,125 @@ export interface CyclingSessionSummary {
   /** Overall assessment text */
   overallAssessment: string;
 }
+
+// ============================================================================
+// CYCLING STATIC MODE TYPES
+// ============================================================================
+
+/**
+ * Cycling mode type - static or dynamic
+ */
+export type CyclingMode = 'static' | 'dynamic';
+
+/**
+ * Step type for static cycling analysis
+ */
+export type CyclingStaticStep = 'heel_on_pedal' | 'clipped_in';
+
+/**
+ * Configuration for cycling static steps
+ */
+export interface CyclingStaticStepConfig {
+  /** Step identifier */
+  step: CyclingStaticStep;
+  /** Display label */
+  label: string;
+  /** Instruction for the user */
+  instruction: string;
+  /** Icon identifier */
+  icon: string;
+}
+
+/**
+ * Recorded measurement for a static step
+ */
+export interface CyclingStaticMeasurement {
+  /** Step type */
+  step: CyclingStaticStep;
+  /** Knee angle measured */
+  kneeAngle: number;
+  /** Hip angle measured */
+  hipAngle: number | null;
+  /** Ankle angle measured */
+  ankleAngle: number | null;
+  /** Trunk angle measured */
+  trunkAngle: number | null;
+  /** Timestamp of measurement */
+  timestamp: number;
+  /** Confidence score of measurement */
+  confidence: number;
+}
+
+/**
+ * Result of static cycling analysis
+ */
+export interface CyclingStaticResult {
+  /** Heel on pedal measurement */
+  heelOnPedal: CyclingStaticMeasurement | null;
+  /** Clipped in measurement */
+  clippedIn: CyclingStaticMeasurement | null;
+  /** Analysis summary */
+  analysis: CyclingStaticAnalysis;
+  /** Completion timestamp */
+  completedAt: number;
+}
+
+/**
+ * Static cycling analysis breakdown
+ */
+export interface CyclingStaticAnalysis {
+  /** Saddle height assessment */
+  saddleAssessment: {
+    status: 'optimal' | 'too_low' | 'too_high' | 'unknown';
+    heelKneeAngle: number | null;
+    clippedKneeAngle: number | null;
+    angleDifference: number | null;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Leg extension analysis */
+  legExtensionAnalysis: {
+    heelExtension: string;
+    clippedExtension: string;
+    assessment: string;
+  };
+  /** Position assessment */
+  positionAssessment: {
+    hipAngle: number | null;
+    trunkAngle: number | null;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Overall recommendations */
+  overallRecommendations: string[];
+  /** Bike fit score (0-100) */
+  bikeFitScore: number;
+}
+
+/**
+ * Thresholds for static cycling analysis
+ */
+export interface CyclingStaticThresholds {
+  /** Ideal knee angle range with heel on pedal (should be ~180° = full extension) */
+  heelKneeAngleIdealMin: number;
+  heelKneeAngleIdealMax: number;
+  /** Ideal knee angle range when clipped in (should be 145-155°) */
+  clippedKneeAngleIdealMin: number;
+  clippedKneeAngleIdealMax: number;
+  /** Minimum knee angle to detect "ready position" (seated on bike) */
+  readyPositionKneeAngle: number;
+  /** Confidence threshold for valid measurement */
+  confidenceThreshold: number;
+}
+
+/**
+ * Default thresholds for static cycling analysis
+ */
+export const DEFAULT_CYCLING_STATIC_THRESHOLDS: CyclingStaticThresholds = {
+  heelKneeAngleIdealMin: 170,    // Nearly straight leg with heel
+  heelKneeAngleIdealMax: 180,    // Full extension
+  clippedKneeAngleIdealMin: 145, // Slight bend when clipped
+  clippedKneeAngleIdealMax: 155, // Not too bent
+  readyPositionKneeAngle: 120,   // Knee bent enough = seated on bike
+  confidenceThreshold: 0.6,
+};
