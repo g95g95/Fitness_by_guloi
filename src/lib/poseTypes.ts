@@ -607,3 +607,163 @@ export interface StaticPainEntry extends PainEntry {
   /** Exercise ID for static mode sessions */
   exerciseId?: string;
 }
+
+// ============================================================================
+// CYCLING 4-TEST TYPES
+// ============================================================================
+
+/**
+ * Test view types for cycling analysis
+ */
+export type CyclingTestView = 'right_side' | 'left_side' | 'front' | 'back';
+
+/**
+ * Cycling test state
+ */
+export interface CyclingTestState {
+  /** Test type */
+  testType: CyclingTestView;
+  /** Test status */
+  status: 'pending' | 'ready' | 'recording' | 'completed';
+  /** Recording start timestamp */
+  startTime?: number;
+  /** Recording duration in ms */
+  duration: number;
+  /** Angle statistics captured */
+  angleStats: Record<string, AngleStats>;
+  /** Current angles (last frame) */
+  currentAngles: Record<string, number | null>;
+  /** Suggestions generated */
+  suggestions: Suggestion[];
+  /** Muscle insights */
+  muscleInsights: MuscleInsight[];
+  /** Pattern flags detected */
+  patternFlags: CyclingPatternFlags;
+  /** Cycle count */
+  cycleCount: number;
+}
+
+/**
+ * Cycling test result with detailed analysis
+ */
+export interface CyclingTestResult {
+  /** Test type */
+  testType: CyclingTestView;
+  /** Recording duration in ms */
+  duration: number;
+  /** Timestamp when completed */
+  completedAt: number;
+  /** Angle statistics */
+  angleStats: Record<string, AngleStats>;
+  /** Generated suggestions */
+  suggestions: Suggestion[];
+  /** Muscle insights */
+  muscleInsights: MuscleInsight[];
+  /** Pattern flags */
+  patternFlags: CyclingPatternFlags;
+  /** Symmetry metrics */
+  symmetryMetrics: SymmetryMetrics;
+  /** Cycle count detected */
+  cycleCount: number;
+  /** Detailed analysis text */
+  detailedAnalysis: CyclingDetailedAnalysis;
+}
+
+/**
+ * Detailed analysis for each cycling test
+ */
+export interface CyclingDetailedAnalysis {
+  /** Ankle analysis */
+  ankleAnalysis: {
+    leftAngle: number | null;
+    rightAngle: number | null;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Knee analysis */
+  kneeAnalysis: {
+    leftAngle: number | null;
+    rightAngle: number | null;
+    atBDC: boolean;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Hip analysis */
+  hipAnalysis: {
+    leftAngle: number | null;
+    rightAngle: number | null;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Saddle height analysis */
+  saddleAnalysis: {
+    assessment: 'optimal' | 'too_low' | 'too_high' | 'unknown';
+    currentKneeAngle: number | null;
+    idealRange: { min: number; max: number };
+    recommendations: string[];
+  };
+  /** Asymmetry analysis */
+  asymmetryAnalysis: {
+    detected: boolean;
+    kneeAsymmetry: number | null;
+    hipAsymmetry: number | null;
+    ankleAsymmetry: number | null;
+    assessment: string;
+    recommendations: string[];
+  };
+  /** Biomechanical considerations */
+  biomechanicalNotes: string[];
+}
+
+/**
+ * Complete cycling session with all 4 tests
+ */
+export interface CyclingSession {
+  /** Session ID */
+  id: string;
+  /** Session start timestamp */
+  startedAt: number;
+  /** Session completion timestamp */
+  completedAt?: number;
+  /** Results from each test */
+  results: {
+    right_side?: CyclingTestResult;
+    left_side?: CyclingTestResult;
+    front?: CyclingTestResult;
+    back?: CyclingTestResult;
+  };
+  /** Overall summary */
+  summary?: CyclingSessionSummary;
+}
+
+/**
+ * Overall session summary combining all 4 tests
+ */
+export interface CyclingSessionSummary {
+  /** Total analysis duration */
+  totalDuration: number;
+  /** Saddle height overall assessment */
+  saddleHeightAssessment: string;
+  /** Key asymmetries detected */
+  keyAsymmetries: string[];
+  /** Priority recommendations */
+  priorityRecommendations: string[];
+  /** Comparison between left/right side tests */
+  sideComparison: {
+    kneeAngleDifference: number | null;
+    hipAngleDifference: number | null;
+    ankleAngleDifference: number | null;
+    assessment: string;
+  };
+  /** Comparison between front/back tests */
+  frontalComparison: {
+    kneeTrackingLeft: string;
+    kneeTrackingRight: string;
+    pelvisStability: string;
+    assessment: string;
+  };
+  /** Overall bike fit score (0-100) */
+  bikeFitScore: number;
+  /** Overall assessment text */
+  overallAssessment: string;
+}
