@@ -101,7 +101,7 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
   pose,
   width,
   height,
-  mirrored = true,
+  mirrored = false, // No mirroring for correct biomechanical analysis
   showAngles = true,
   angles = {},
   mode = 'cycling',
@@ -120,16 +120,13 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
   );
 
   /**
-   * Transform point coordinates (mirror if needed)
+   * Transform point coordinates (no longer mirrors here - CSS handles mirroring)
    */
   const transformPoint = useCallback(
     (x: number, y: number): { x: number; y: number } => {
-      return {
-        x: mirrored ? width - x : x,
-        y: y,
-      };
+      return { x, y };
     },
-    [mirrored, width]
+    []
   );
 
   /**
@@ -274,6 +271,7 @@ const PoseOverlayCanvas: React.FC<PoseOverlayCanvasProps> = ({
       width={width}
       height={height}
       className="absolute inset-0 w-full h-full"
+      style={mirrored ? { transform: 'scaleX(-1)' } : undefined}
     />
   );
 };
