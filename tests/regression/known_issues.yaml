@@ -1,0 +1,214 @@
+# BiomechCoach - Known Issues Pattern Database
+#
+# This file documents all known issues and patterns that have caused
+# bugs in the past. Tests are generated from this file to prevent
+# regression.
+#
+# ADDING NEW ISSUES:
+# When you find a new bug related to mocap data, add it here:
+# 1. Create a new entry under the appropriate category
+# 2. Document the issue clearly
+# 3. Run: pytest tests/regression/test_known_issues.py to verify
+
+version: "1.0.0"
+last_updated: "2025-01-15"
+
+# =============================================================================
+# MIRRORING ISSUES
+# =============================================================================
+mirroring_issues:
+  mirroring_flip:
+    id: "MIRROR-001"
+    severity: "critical"
+    description: "X coordinate mirroring formula incorrectly implemented"
+    correct_formula: "mirrored_x = frame_width - original_x"
+    wrong_formulas:
+      - "mirrored_x = original_x"  # No mirroring
+      - "mirrored_x = -original_x"  # Negative instead of flip
+      - "mirrored_x = frame_width + original_x"  # Addition instead of subtraction
+    test_cases:
+      - original_x: 100
+        frame_width: 640
+        expected: 540
+      - original_x: 320
+        frame_width: 640
+        expected: 320  # Center stays center
+      - original_x: 0
+        frame_width: 640
+        expected: 640
+    symptoms:
+      - "Skeleton appears on wrong side of video"
+      - "Left/right limbs swapped incorrectly"
+      - "User sees inverted movements"
+    fix_reference: "src/components/PoseOverlayCanvas.tsx"
+
+  y_coordinate_modified:
+    id: "MIRROR-002"
+    severity: "critical"
+    description: "Y coordinate incorrectly modified during mirroring"
+    rule: "Y coordinate must NEVER change during X mirroring"
+    test_cases:
+      - original_y: 100
+        expected_after_mirror: 100
+      - original_y: 360
+        expected_after_mirror: 360
+    symptoms:
+      - "Skeleton appears vertically shifted"
+      - "Pose detection seems offset"
+    fix_reference: "tests/regression/test_mirroring.py"
+
+  double_mirror_bug:
+    id: "MIRROR-003"
+    severity: "high"
+    description: "Mirroring applied twice doesn't return original"
+    rule: "mirror(mirror(x)) == x"
+    test_cases:
+      - original_x: 150
+        frame_width: 640
+        after_first_mirror: 490
+        after_second_mirror: 150
+    symptoms:
+      - "Skeleton drifts over time"
+      - "Position becomes unstable"
+
+# =============================================================================
+# COORDINATE SYSTEM ISSUES
+# =============================================================================
+coordinate_issues:
+  axis_swap:
+    id: "COORD-001"
+    severity: "critical"
+    description: "X and Y coordinates swapped"
+    rule: "X is horizontal (0=left, max=right), Y is vertical (0=top, max=bottom)"
+    test_cases:
+      - point:
+          x: 100
+          y: 200
+        should_not_become:
+          x: 200
+          y: 100
+    symptoms:
+      - "Skeleton appears rotated 90 degrees"
+      - "Horizontal movements appear vertical"
+
+  coordinate_inversion:
+    id: "COORD-002"
+    severity: "high"
+    description: "Coordinate origin incorrectly placed"
+    correct_origin: "top-left (0,0)"
+    wrong_origins:
+      - "bottom-left"
+      - "top-right"
+      - "center"
+    test_cases:
+      - description: "Top-left point"
+        expected:
+          x: 0
+          y: 0
+      - description: "Bottom-right point (640x720)"
+        expected:
+          x: 640
+          y: 720
+    symptoms:
+      - "Skeleton appears upside down"
+      - "Skeleton in corner instead of center"
+
+  normalized_vs_pixel:
+    id: "COORD-003"
+    severity: "high"
+    description: "Confusion between normalized (0-1) and pixel coordinates"
+    rule: "MediaPipe returns normalized, we convert to pixels"
+    conversion: "pixel_x = normalized_x * frame_width"
+    test_cases:
+      - normalized: 0.5
+        frame_width: 640
+        expected_pixel: 320
+      - normalized: 1.0
+        frame_width: 640
+        expected_pixel: 640
+    symptoms:
+      - "Skeleton appears tiny in corner"
+      - "All keypoints clustered near origin"
+
+# =============================================================================
+# KEYPOINT ISSUES
+# =============================================================================
+keypoint_issues:
+  keypoint_index_mismatch:
+    id: "KP-001"
+    severity: "high"
+    description: "Wrong keypoint index used for joint"
+    reference: "MediaPipe Pose has 33 keypoints, indices 0-32"
+    critical_indices:
+      left_shoulder: 11
+      right_shoulder: 12
+      left_hip: 23
+      right_hip: 24
+      left_knee: 25
+      right_knee: 26
+      left_ankle: 27
+      right_ankle: 28
+    symptoms:
+      - "Angles calculated from wrong joints"
+      - "Knee angle using hip keypoint"
+
+  left_right_swap:
+    id: "KP-002"
+    severity: "critical"
+    description: "Left and right keypoints confused"
+    rule: "In non-mirrored view, 'left' refers to subject's left"
+    test_cases:
+      - original_view: "subject facing camera"
+        left_shoulder_screen_position: "right side of screen"
+        right_shoulder_screen_position: "left side of screen"
+    symptoms:
+      - "Asymmetry analysis inverted"
+      - "Left leg issues reported for right leg"
+
+# =============================================================================
+# ANGLE CALCULATION ISSUES
+# =============================================================================
+angle_issues:
+  angle_vertex_order:
+    id: "ANGLE-001"
+    severity: "high"
+    description: "Points passed to angle function in wrong order"
+    rule: "angleBetweenPoints(A, B, C) calculates angle at vertex B"
+    correct_order:
+      knee_angle: "hip -> knee -> ankle (angle at knee)"
+      hip_angle: "shoulder -> hip -> knee (angle at hip)"
+    wrong_order:
+      - "ankle -> knee -> hip (inverted)"
+      - "knee -> hip -> ankle (wrong vertex)"
+    symptoms:
+      - "Angles seem inverted (180 - actual)"
+      - "Knee angle shows hip angle"
+
+  angle_unit_mismatch:
+    id: "ANGLE-002"
+    severity: "medium"
+    description: "Radians and degrees confused"
+    rule: "All angles in BiomechCoach are DEGREES"
+    conversion: "degrees = radians * (180 / PI)"
+    test_cases:
+      - radians: 1.5708  # PI/2
+        expected_degrees: 90
+      - radians: 3.1416  # PI
+        expected_degrees: 180
+    symptoms:
+      - "Angles appear as small decimals (0-6 instead of 0-360)"
+      - "Knee shows 1.57 instead of 90"
+
+# =============================================================================
+# HOW TO ADD NEW ISSUES
+# =============================================================================
+# 1. Identify the bug category (mirroring, coordinate, keypoint, angle)
+# 2. Create a unique ID following the pattern: CATEGORY-XXX
+# 3. Document:
+#    - severity: critical, high, medium, low
+#    - description: what went wrong
+#    - rule: what the correct behavior should be
+#    - test_cases: specific examples to test
+#    - symptoms: how the bug manifests to users
+#    - fix_reference: where to look for the fix
+# 4. Run the test generator to create new tests

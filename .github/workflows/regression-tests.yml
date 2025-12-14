@@ -1,0 +1,136 @@
+# BiomechCoach - Regression Test CI/CD Workflow
+#
+# This workflow runs critical regression tests on every push and PR.
+# It ensures that mirroring and coordinate transformations remain intact.
+
+name: Regression Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'pytest.ini'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  critical-regression-tests:
+    name: Critical Regression Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml
+
+      - name: Run CRITICAL regression tests
+        run: |
+          echo "=============================================="
+          echo "Running CRITICAL Regression Tests"
+          echo "=============================================="
+          pytest tests/ -m "critical" -v --tb=short --maxfail=3
+
+      - name: Run ALL regression tests
+        run: |
+          echo "=============================================="
+          echo "Running ALL Regression Tests"
+          echo "=============================================="
+          pytest tests/ -m "regression" -v --tb=short
+
+  mirroring-tests:
+    name: Mirroring Integrity Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml
+
+      - name: Run MIRRORING tests
+        run: |
+          echo "=============================================="
+          echo "Running MIRRORING-SPECIFIC Tests"
+          echo "=============================================="
+          echo "These tests MUST pass. If they fail, the mocap"
+          echo "mirroring system has been incorrectly modified."
+          echo "=============================================="
+          pytest tests/ -m "mirroring" -v --tb=long
+
+      - name: Verify mirroring formula
+        run: |
+          echo "Verifying mirroring formula..."
+          python -c "
+          def mirror(x, w): return w - x
+          # Test cases
+          assert mirror(100, 640) == 540, 'Mirror test 1 failed'
+          assert mirror(320, 640) == 320, 'Center test failed'
+          assert mirror(mirror(150, 640), 640) == 150, 'Reversibility failed'
+          print('All mirroring formula tests passed!')
+          "
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pyyaml
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --tb=short
+
+  # This job runs after all others and reports final status
+  final-status:
+    name: Final Status Check
+    needs: [critical-regression-tests, mirroring-tests, unit-tests]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check all tests passed
+        run: |
+          if [ "${{ needs.critical-regression-tests.result }}" != "success" ]; then
+            echo "CRITICAL REGRESSION TESTS FAILED!"
+            exit 1
+          fi
+          if [ "${{ needs.mirroring-tests.result }}" != "success" ]; then
+            echo "MIRRORING TESTS FAILED!"
+            exit 1
+          fi
+          echo "All tests passed successfully!"

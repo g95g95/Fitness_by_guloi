@@ -1,0 +1,52 @@
+{
+  "description": "Reference pose: Single-leg stance on left leg, front view",
+  "frame_width": 640,
+  "frame_height": 720,
+  "created_at": "2025-01-15",
+  "version": "1.0.0",
+  "pose": {
+    "timestamp": 10000.0,
+    "isValid": true,
+    "keypoints": [
+      {"name": "nose", "x": 310.0, "y": 95.0, "score": 0.95},
+      {"name": "left_eye_inner", "x": 318.0, "y": 87.0, "score": 0.93},
+      {"name": "left_eye", "x": 323.0, "y": 87.0, "score": 0.94},
+      {"name": "left_eye_outer", "x": 330.0, "y": 88.0, "score": 0.92},
+      {"name": "right_eye_inner", "x": 302.0, "y": 87.0, "score": 0.93},
+      {"name": "right_eye", "x": 297.0, "y": 87.0, "score": 0.94},
+      {"name": "right_eye_outer", "x": 290.0, "y": 88.0, "score": 0.92},
+      {"name": "left_ear", "x": 342.0, "y": 93.0, "score": 0.88},
+      {"name": "right_ear", "x": 278.0, "y": 93.0, "score": 0.88},
+      {"name": "mouth_left", "x": 316.0, "y": 112.0, "score": 0.90},
+      {"name": "mouth_right", "x": 304.0, "y": 112.0, "score": 0.90},
+      {"name": "left_shoulder", "x": 375.0, "y": 175.0, "score": 0.96},
+      {"name": "right_shoulder", "x": 245.0, "y": 180.0, "score": 0.96},
+      {"name": "left_elbow", "x": 395.0, "y": 280.0, "score": 0.93},
+      {"name": "right_elbow", "x": 225.0, "y": 285.0, "score": 0.93},
+      {"name": "left_wrist", "x": 400.0, "y": 380.0, "score": 0.89},
+      {"name": "right_wrist", "x": 220.0, "y": 385.0, "score": 0.89},
+      {"name": "left_pinky", "x": 405.0, "y": 395.0, "score": 0.76},
+      {"name": "right_pinky", "x": 215.0, "y": 400.0, "score": 0.76},
+      {"name": "left_index", "x": 402.0, "y": 390.0, "score": 0.79},
+      {"name": "right_index", "x": 218.0, "y": 395.0, "score": 0.79},
+      {"name": "left_thumb", "x": 398.0, "y": 385.0, "score": 0.77},
+      {"name": "right_thumb", "x": 222.0, "y": 390.0, "score": 0.77},
+      {"name": "left_hip", "x": 350.0, "y": 395.0, "score": 0.95},
+      {"name": "right_hip", "x": 270.0, "y": 400.0, "score": 0.95},
+      {"name": "left_knee", "x": 355.0, "y": 535.0, "score": 0.94},
+      {"name": "right_knee", "x": 300.0, "y": 450.0, "score": 0.94},
+      {"name": "left_ankle", "x": 358.0, "y": 665.0, "score": 0.92},
+      {"name": "right_ankle", "x": 330.0, "y": 500.0, "score": 0.92},
+      {"name": "left_heel", "x": 360.0, "y": 685.0, "score": 0.86},
+      {"name": "right_heel", "x": 335.0, "y": 510.0, "score": 0.86},
+      {"name": "left_foot_index", "x": 368.0, "y": 695.0, "score": 0.83},
+      {"name": "right_foot_index", "x": 340.0, "y": 520.0, "score": 0.83}
+    ]
+  },
+  "test_scenario": "single_leg_balance",
+  "standing_leg": "left",
+  "expected_patterns": {
+    "hip_drop_possible": true,
+    "reason": "Right hip slightly elevated when right leg lifted"
+  }
+}

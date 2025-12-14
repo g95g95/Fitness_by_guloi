@@ -156,3 +156,85 @@ Per-exercise data:
 8. DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY.
 9. MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY.
 10. **ALWAYS UPDATE CLAUDE.md** after making significant changes to the project structure, adding new files, or modifying key functionality.
+
+---
+
+## Documentation Files
+
+| File | Description |
+|------|-------------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Data flow diagrams, module dependencies, analysis pipelines |
+| [CONVENTIONS.md](./CONVENTIONS.md) | Naming conventions, code patterns, import order |
+| [docs/PATTERNS.md](./docs/PATTERNS.md) | Pattern detection thresholds, recommendations mapping |
+| [docs/EXERCISES.md](./docs/EXERCISES.md) | Exercise catalog, ideal angles, starting positions |
+| [docs/LANDMARKS.md](./docs/LANDMARKS.md) | MediaPipe landmark indices and usage by mode |
+| [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) | Common issues and debugging guide |
+| [tasks/todo.md](./tasks/todo.md) | Task tracking template |
+
+---
+
+## Quick Reference
+
+### NPM Commands
+
+```bash
+# Development
+npm run dev          # Start dev server (Vite)
+
+# Build
+npm run build        # Production build
+npm run preview      # Preview production build
+
+# Linting
+npm run lint         # Run ESLint
+```
+
+### Key Files to Know
+
+| Purpose | File |
+|---------|------|
+| All TypeScript types | `src/lib/poseTypes.ts` |
+| Angle calculations | `src/lib/vectorMath.ts` |
+| Exercise definitions | `src/lib/staticExercises.ts` |
+| Ideal angles & tolerances | `src/lib/exerciseStandards.ts` |
+| Pattern detection | `src/lib/patterns/*.ts` |
+| Pose estimation hook | `src/hooks/usePoseEstimation.ts` |
+
+### Critical Constants
+
+```typescript
+// src/lib/poseTypes.ts
+MIN_KEYPOINT_CONFIDENCE = 0.5   // Keypoint filter threshold
+
+// src/lib/exerciseStandards.ts
+Starting position tolerance = ±5°  // Default for all exercises
+
+// src/lib/poseTypes.ts - DEFAULT_STATIC_THRESHOLDS
+swayThreshold: 0.02              // 2% of frame = instability
+hipDropThreshold: 0.03           // 3% = hip drop detected
+kneeValgusThreshold: 10          // 10° = valgus detected
+asymmetryThreshold: 5            // 5° L/R difference
+```
+
+---
+
+## Recommended Workflow
+
+1. **New Feature/Bug Fix**:
+   ```
+   1. Create task plan in tasks/todo.md
+   2. Read relevant files (check docs/ for guidance)
+   3. Implement changes (minimal, simple)
+   4. Test manually
+   5. Update tasks/todo.md with review
+   6. Update CLAUDE.md if structure changed
+   ```
+
+2. **Adding New Pattern**:
+   - See [docs/PATTERNS.md](./docs/PATTERNS.md) for checklist
+
+3. **Adding New Exercise**:
+   - See [docs/EXERCISES.md](./docs/EXERCISES.md) for checklist
+
+4. **Debugging**:
+   - See [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)
