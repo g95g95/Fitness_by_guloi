@@ -80,6 +80,19 @@ export interface RecordingState {
 }
 
 /**
+ * Accumulated angles during recording for averaging
+ */
+export interface AccumulatedAngles {
+  leftKnee: number[];
+  rightKnee: number[];
+  leftHipAngle: number[];
+  rightHipAngle: number[];
+  leftAnkle: number[];
+  rightAnkle: number[];
+  trunkLean: number[];
+}
+
+/**
  * Hook return type
  */
 export interface UseStaticAnalysisReturn {
@@ -117,6 +130,8 @@ export interface UseStaticAnalysisReturn {
   stopRecording: () => void;
   /** Analysis summary text */
   summaryText: string;
+  /** Averaged angles from recording (available after recording stops) */
+  averagedAngles: StaticAngles;
 }
 
 /**
@@ -156,6 +171,28 @@ export function useStaticAnalysis(
     elapsedSeconds: 0,
     targetDuration: 20,
     frames: [],
+  });
+
+  // Accumulated angles during recording
+  const accumulatedAnglesRef = useRef<AccumulatedAngles>({
+    leftKnee: [],
+    rightKnee: [],
+    leftHipAngle: [],
+    rightHipAngle: [],
+    leftAnkle: [],
+    rightAnkle: [],
+    trunkLean: [],
+  });
+
+  // Averaged angles (calculated after recording stops)
+  const [averagedAngles, setAveragedAngles] = useState<StaticAngles>({
+    leftKnee: null,
+    rightKnee: null,
+    leftHipAngle: null,
+    rightHipAngle: null,
+    leftAnkle: null,
+    rightAnkle: null,
+    trunkLean: null,
   });
 
   // Refs for internal data
@@ -357,9 +394,18 @@ export function useStaticAnalysis(
       // Update raw metrics
       updateRawMetrics(frame, frameWidth, frameHeight);
 
-      // If recording, store frame
+      // If recording, store frame and accumulate angles
       if (recording.isRecording) {
         recordingFramesRef.current.push(frame);
+
+        // Accumulate angles for averaging
+        if (angles.leftKnee !== null) accumulatedAnglesRef.current.leftKnee.push(angles.leftKnee);
+        if (angles.rightKnee !== null) accumulatedAnglesRef.current.rightKnee.push(angles.rightKnee);
+        if (angles.leftHipAngle !== null) accumulatedAnglesRef.current.leftHipAngle.push(angles.leftHipAngle);
+        if (angles.rightHipAngle !== null) accumulatedAnglesRef.current.rightHipAngle.push(angles.rightHipAngle);
+        if (angles.leftAnkle !== null) accumulatedAnglesRef.current.leftAnkle.push(angles.leftAnkle);
+        if (angles.rightAnkle !== null) accumulatedAnglesRef.current.rightAnkle.push(angles.rightAnkle);
+        if (angles.trunkLean !== null) accumulatedAnglesRef.current.trunkLean.push(angles.trunkLean);
 
         // Update elapsed time using performance.now() for consistency
         if (recording.startTime) {
@@ -439,9 +485,22 @@ export function useStaticAnalysis(
   }, []);
 
   /**
-   * Stop recording session
+   * Stop recording session and calculate averaged angles
    */
   const stopRecording = useCallback(() => {
+    // Calculate averaged angles from accumulated data
+    const acc = accumulatedAnglesRef.current;
+    const avgAngles: StaticAngles = {
+      leftKnee: acc.leftKnee.length > 0 ? mean(acc.leftKnee) : null,
+      rightKnee: acc.rightKnee.length > 0 ? mean(acc.rightKnee) : null,
+      leftHipAngle: acc.leftHipAngle.length > 0 ? mean(acc.leftHipAngle) : null,
+      rightHipAngle: acc.rightHipAngle.length > 0 ? mean(acc.rightHipAngle) : null,
+      leftAnkle: acc.leftAnkle.length > 0 ? mean(acc.leftAnkle) : null,
+      rightAnkle: acc.rightAnkle.length > 0 ? mean(acc.rightAnkle) : null,
+      trunkLean: acc.trunkLean.length > 0 ? mean(acc.trunkLean) : null,
+    };
+    setAveragedAngles(avgAngles);
+
     setRecording((prev) => ({
       ...prev,
       isRecording: false,
@@ -457,8 +516,26 @@ export function useStaticAnalysis(
     frameCountRef.current = 0;
     startTimeRef.current = 0;
     recordingFramesRef.current = [];
+    accumulatedAnglesRef.current = {
+      leftKnee: [],
+      rightKnee: [],
+      leftHipAngle: [],
+      rightHipAngle: [],
+      leftAnkle: [],
+      rightAnkle: [],
+      trunkLean: [],
+    };
 
     setCurrentAngles({
+      leftKnee: null,
+      rightKnee: null,
+      leftHipAngle: null,
+      rightHipAngle: null,
+      leftAnkle: null,
+      rightAnkle: null,
+      trunkLean: null,
+    });
+    setAveragedAngles({
       leftKnee: null,
       rightKnee: null,
       leftHipAngle: null,
@@ -565,6 +642,7 @@ export function useStaticAnalysis(
     startRecording,
     stopRecording,
     summaryText,
+    averagedAngles,
   };
 }
 

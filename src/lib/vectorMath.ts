@@ -362,3 +362,34 @@ export function detectLocalMaximum(
   }
   return -1;
 }
+
+/**
+ * Calculates the KOPS (Knee Over Pedal Spindle) angle.
+ * Measures the tibial angle from vertical (knee to ankle line).
+ *
+ * @param knee - Knee point
+ * @param ankle - Ankle point
+ * @returns Signed angle in degrees:
+ *   - Positive = knee is forward of ankle (saddle too far forward)
+ *   - Negative = knee is behind ankle (saddle too far back)
+ *   - Zero = knee directly over ankle (ideal KOPS)
+ */
+export function calculateKopsAngle(
+  knee: Point2D | null,
+  ankle: Point2D | null
+): number | null {
+  if (!knee || !ankle) return null;
+
+  // Calculate horizontal difference (positive = knee forward)
+  const dx = knee.x - ankle.x;
+  // Calculate vertical difference (always positive since knee is above ankle)
+  const dy = ankle.y - knee.y;
+
+  if (dy <= 0) return null; // Invalid - knee should be above ankle
+
+  // Calculate angle: atan2 gives us signed angle
+  // tan(angle) = horizontal / vertical
+  const angleRad = Math.atan2(dx, dy);
+
+  return radiansToDegrees(angleRad);
+}

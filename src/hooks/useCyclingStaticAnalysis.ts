@@ -22,6 +22,7 @@ import {
   angleFromVertical,
   keypointToPoint,
   getKeypointByName,
+  calculateKopsAngle,
 } from '../lib/vectorMath';
 
 /**
@@ -32,6 +33,8 @@ export interface CyclingStaticAngles {
   hipAngle: number | null;
   ankleAngle: number | null;
   trunkAngle: number | null;
+  /** KOPS angle - tibial angle from vertical (positive = knee forward) */
+  kopsAngle: number | null;
   confidence: number;
 }
 
@@ -289,6 +292,7 @@ export function useCyclingStaticAnalysis(
     hipAngle: null,
     ankleAngle: null,
     trunkAngle: null,
+    kopsAngle: null,
     confidence: 0,
   });
 
@@ -359,6 +363,7 @@ export function useCyclingStaticAnalysis(
     let kneeAngle: number | null = null;
     let hipAngle: number | null = null;
     let ankleAngle: number | null = null;
+    let kopsAngle: number | null = null;
     let overallConfidence = 0;
 
     if (leftLegConfidence > rightLegConfidence && leftLegConfidence >= finalConfig.thresholds.confidenceThreshold) {
@@ -366,12 +371,14 @@ export function useCyclingStaticAnalysis(
       kneeAngle = angleBetweenPoints(leftHipPt, leftKneePt, leftAnklePt);
       hipAngle = angleBetweenPoints(leftShoulderPt, leftHipPt, leftKneePt);
       ankleAngle = angleBetweenPoints(leftKneePt, leftAnklePt, leftFootPt);
+      kopsAngle = calculateKopsAngle(leftKneePt, leftAnklePt);
       overallConfidence = leftLegConfidence;
     } else if (rightLegConfidence >= finalConfig.thresholds.confidenceThreshold) {
       // Use right leg
       kneeAngle = angleBetweenPoints(rightHipPt, rightKneePt, rightAnklePt);
       hipAngle = angleBetweenPoints(rightShoulderPt, rightHipPt, rightKneePt);
       ankleAngle = angleBetweenPoints(rightKneePt, rightAnklePt, rightFootPt);
+      kopsAngle = calculateKopsAngle(rightKneePt, rightAnklePt);
       overallConfidence = rightLegConfidence;
     }
 
@@ -391,6 +398,7 @@ export function useCyclingStaticAnalysis(
       hipAngle,
       ankleAngle,
       trunkAngle,
+      kopsAngle,
       confidence: overallConfidence,
     };
   }, [finalConfig.thresholds.confidenceThreshold]);
@@ -429,6 +437,10 @@ export function useCyclingStaticAnalysis(
     const avgTrunk = validMeasurements
       .filter(m => m.trunkAngle !== null)
       .reduce((sum, m, _, arr) => sum + (m.trunkAngle || 0) / arr.length, 0) || null;
+    const kopsValidMeasurements = validMeasurements.filter(m => m.kopsAngle !== null);
+    const avgKops = kopsValidMeasurements.length > 0
+      ? kopsValidMeasurements.reduce((sum, m) => sum + (m.kopsAngle || 0), 0) / kopsValidMeasurements.length
+      : null;
     const avgConfidence = validMeasurements.reduce((sum, m) => sum + m.confidence, 0) / validMeasurements.length;
 
     const measurement: CyclingStaticMeasurement = {
@@ -437,6 +449,7 @@ export function useCyclingStaticAnalysis(
       hipAngle: avgHip,
       ankleAngle: avgAnkle,
       trunkAngle: avgTrunk,
+      kopsAngle: avgKops,
       timestamp: Date.now(),
       confidence: avgConfidence,
     };
@@ -555,6 +568,7 @@ export function useCyclingStaticAnalysis(
       hipAngle: null,
       ankleAngle: null,
       trunkAngle: null,
+      kopsAngle: null,
       confidence: 0,
     });
     setIsInReadyPosition(false);

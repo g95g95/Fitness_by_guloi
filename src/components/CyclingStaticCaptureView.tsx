@@ -54,6 +54,27 @@ function formatAngle(angle: number | null | undefined): string {
 }
 
 /**
+ * Format KOPS angle with sign
+ */
+function formatKopsAngle(angle: number | null | undefined): string {
+  if (angle === null || angle === undefined) return '--';
+  const rounded = Math.round(angle);
+  if (rounded > 0) return `+${rounded}°`;
+  return `${rounded}°`;
+}
+
+/**
+ * Get color class for KOPS angle
+ */
+function getKopsAngleColorClass(angle: number | null): string {
+  if (angle === null) return 'text-gray-400';
+  const absAngle = Math.abs(angle);
+  if (absAngle <= 2) return 'text-green-400';   // Ideal: 0° ± 2°
+  if (absAngle <= 5) return 'text-yellow-400';  // Acceptable
+  return 'text-red-400';                         // Too far forward/back
+}
+
+/**
  * Get color class based on angle quality for saddle height
  */
 function getKneeAngleColorClass(angle: number | null, step: CyclingStaticStep): string {
@@ -295,6 +316,11 @@ const CyclingStaticCaptureView: React.FC = () => {
                         {formatAngle(measurements.heelOnPedal.kneeAngle)}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">Ideale: 170°-180°</div>
+                      {measurements.heelOnPedal.kopsAngle !== null && (
+                        <div className={`text-sm mt-2 ${getKopsAngleColorClass(measurements.heelOnPedal.kopsAngle)}`}>
+                          KOPS: {formatKopsAngle(measurements.heelOnPedal.kopsAngle)}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-2xl text-gray-500">Non misurato</div>
@@ -310,6 +336,11 @@ const CyclingStaticCaptureView: React.FC = () => {
                         {formatAngle(measurements.clippedIn.kneeAngle)}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">Ideale: 145°-155°</div>
+                      {measurements.clippedIn.kopsAngle !== null && (
+                        <div className={`text-sm mt-2 ${getKopsAngleColorClass(measurements.clippedIn.kopsAngle)}`}>
+                          KOPS: {formatKopsAngle(measurements.clippedIn.kopsAngle)}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-2xl text-gray-500">Non misurato</div>
@@ -682,6 +713,17 @@ const CyclingStaticCaptureView: React.FC = () => {
                     </span>
                   </div>
 
+                  {/* KOPS angle */}
+                  <div className="flex justify-between text-sm border-t border-gray-700 pt-2">
+                    <span className="text-gray-400 flex items-center gap-1" title="Knee Over Pedal Spindle - A ore 3, misura se il ginocchio è sopra l'asse del pedale. 0° = ideale. Positivo = ginocchio avanti. Negativo = ginocchio indietro.">
+                      KOPS
+                      <span className="text-gray-500 cursor-help text-xs">ⓘ</span>
+                    </span>
+                    <span className={`font-mono font-bold ${getKopsAngleColorClass(staticAnalysis.currentAngles.kopsAngle)}`}>
+                      {formatKopsAngle(staticAnalysis.currentAngles.kopsAngle)}
+                    </span>
+                  </div>
+
                   <div className="flex justify-between text-sm border-t border-gray-700 pt-2">
                     <span className="text-gray-400">Confidenza:</span>
                     <span className={`font-mono ${
@@ -726,8 +768,15 @@ const CyclingStaticCaptureView: React.FC = () => {
                           )}
                         </div>
                         {measurement ? (
-                          <div className="text-2xl font-bold text-white">
-                            {formatAngle(measurement.kneeAngle)}
+                          <div>
+                            <div className="text-2xl font-bold text-white">
+                              {formatAngle(measurement.kneeAngle)}
+                            </div>
+                            {measurement.kopsAngle !== null && (
+                              <div className={`text-sm ${getKopsAngleColorClass(measurement.kopsAngle)}`}>
+                                KOPS: {formatKopsAngle(measurement.kopsAngle)}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-sm text-gray-500">
@@ -751,6 +800,10 @@ const CyclingStaticCaptureView: React.FC = () => {
                   <div>
                     <span className="text-gray-400">Pedale agganciato:</span>
                     <span className="text-white ml-2">145°-155° (leggera flessione)</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">KOPS (ore 3):</span>
+                    <span className="text-white ml-2">0° ± 2° (ginocchio sopra pedale)</span>
                   </div>
                   <div className="pt-2 border-t border-gray-700">
                     <span className="text-gray-400">Posizione:</span>

@@ -153,13 +153,13 @@ const CameraFeed = forwardRef<HTMLVideoElement, CameraFeedProps>(
 
     return (
       <div className="video-container">
-        {/* Video element - mirrored for natural "mirror" experience */}
+        {/* Video element - mirrored only for static mode for natural "mirror" experience */}
         <video
           ref={ref}
           autoPlay
           playsInline
           muted
-          style={{ transform: 'scaleX(-1)' }}
+          style={mode === 'static' ? { transform: 'scaleX(-1)' } : undefined}
         />
 
         {/* Overlay canvas (children) */}

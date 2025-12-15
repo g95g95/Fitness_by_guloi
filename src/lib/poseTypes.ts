@@ -810,6 +810,8 @@ export interface CyclingStaticMeasurement {
   ankleAngle: number | null;
   /** Trunk angle measured */
   trunkAngle: number | null;
+  /** KOPS angle - tibial angle from vertical at 3 o'clock (positive = knee forward) */
+  kopsAngle: number | null;
   /** Timestamp of measurement */
   timestamp: number;
   /** Confidence score of measurement */
@@ -876,6 +878,12 @@ export interface CyclingStaticThresholds {
   readyPositionKneeAngle: number;
   /** Confidence threshold for valid measurement */
   confidenceThreshold: number;
+  /** KOPS angle ideal range (degrees from vertical, 0 = knee over pedal) */
+  kopsAngleIdealMin: number;
+  kopsAngleIdealMax: number;
+  /** KOPS warning thresholds (knee too far forward/back) */
+  kopsAngleWarningForward: number;
+  kopsAngleWarningBack: number;
 }
 
 /**
@@ -888,4 +896,8 @@ export const DEFAULT_CYCLING_STATIC_THRESHOLDS: CyclingStaticThresholds = {
   clippedKneeAngleIdealMax: 155, // Not too bent
   readyPositionKneeAngle: 120,   // Knee bent enough = seated on bike
   confidenceThreshold: 0.6,
+  kopsAngleIdealMin: -2,         // Knee slightly behind pedal OK
+  kopsAngleIdealMax: 2,          // Knee slightly forward OK
+  kopsAngleWarningForward: 5,    // Knee too far forward = saddle too far forward
+  kopsAngleWarningBack: -5,      // Knee too far back = saddle too far back
 };

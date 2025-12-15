@@ -25,6 +25,7 @@ src/
 │   ├── ExerciseList.tsx         # List of static exercises to select
 │   ├── ModeSelector.tsx         # Landing page - mode selection (cycling/running/static)
 │   ├── PainInputModal.tsx       # Modal for logging pain data
+│   ├── PasswordGate.tsx         # Password protection gate (when VITE_IS_DEBUG=true)
 │   ├── PatternBadges.tsx        # Shows detected biomechanical pattern flags
 │   ├── PoseOverlayCanvas.tsx    # Draws skeleton overlay on video
 │   ├── PositionValidationOverlay.tsx # Visual feedback for starting position validation
@@ -214,6 +215,50 @@ swayThreshold: 0.02              // 2% of frame = instability
 hipDropThreshold: 0.03           // 3% = hip drop detected
 kneeValgusThreshold: 10          // 10° = valgus detected
 asymmetryThreshold: 5            // 5° L/R difference
+```
+
+---
+
+## Deployment on Render
+
+### Setup
+
+1. Create a new **Static Site** on [Render](https://render.com)
+2. Connect your GitHub repository
+3. Configure build settings:
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `dist`
+
+### Environment Variables
+
+Set these environment variables in Render dashboard (Settings → Environment):
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `VITE_IS_DEBUG` | `true` | Enables password protection gate |
+| `VITE_DEBUG_PASSWORD` | `your_password` | Password to access the app (default: `CERVARA`) |
+
+**Important**: For production with password protection, set `VITE_IS_DEBUG=true`. This will show a password gate before users can access the application.
+
+### How Password Protection Works
+
+When `VITE_IS_DEBUG=true`:
+- Users see a password input screen on first visit
+- After entering the correct password, access is granted
+- The `PasswordGate` component (`src/components/PasswordGate.tsx`) handles this logic
+
+### Local Development
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+```
+VITE_IS_DEBUG=true
+VITE_DEBUG_PASSWORD=your_local_password
 ```
 
 ---

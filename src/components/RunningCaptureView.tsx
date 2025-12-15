@@ -573,7 +573,7 @@ const RunningCaptureView: React.FC = () => {
                       pose={currentPose}
                       width={dimensions.width}
                       height={dimensions.height}
-                      mirrored={true}
+                      mirrored={false}
                       showAngles={true}
                       angles={getCurrentAnglesForOverlay()}
                       mode="running"

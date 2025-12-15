@@ -240,6 +240,7 @@ const CaptureView: React.FC<CaptureViewProps> = ({ mode }) => {
         leftAnkleAngle: angles.leftAnkleAngle,
         rightAnkleAngle: angles.rightAnkleAngle,
         trunkAngle: angles.trunkAngle,
+        kopsAngle: angles.kopsAngle,
       };
     }
     const angles = runningAnalysis.currentAngles;

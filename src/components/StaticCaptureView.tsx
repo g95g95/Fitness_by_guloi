@@ -224,39 +224,69 @@ const StaticCaptureView: React.FC = () => {
     // Store config and start waiting for position
     setPendingConfig(config);
     setIsWaitingForPosition(true);
-    setPositionValidSince(null);
   };
 
   /**
-   * Effect to handle position validation and countdown
-   * When position is valid, starts countdown. Countdown does NOT subtract from recording time.
+   * Ref to hold startRecording function to avoid dependency issues
+   */
+  const startRecordingRef = useRef(staticAnalysis.startRecording);
+  startRecordingRef.current = staticAnalysis.startRecording;
+
+  /**
+   * State to track if countdown is active (separate from showCountdown for stability)
+   */
+  const [countdownActive, setCountdownActive] = useState(false);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /**
+   * Effect to detect when position becomes valid and trigger countdown
    */
   useEffect(() => {
     if (!isWaitingForPosition || !pendingConfig) return;
+    if (!positionValidation.isValid) return;
+    if (countdownActive) return; // Already counting down
 
-    if (positionValidation.isValid) {
-      // Position is now valid - start countdown
-      setIsWaitingForPosition(false);
-      setShowCountdown(true);
-      setCountdownValue(pendingConfig.detectionDelay);
+    // Position is now valid - start countdown
+    setIsWaitingForPosition(false);
+    setCountdownActive(true);
+    setShowCountdown(true);
+    setCountdownValue(pendingConfig.detectionDelay);
+  }, [isWaitingForPosition, pendingConfig, positionValidation.isValid, countdownActive]);
 
-      let currentCountdown = pendingConfig.detectionDelay;
-      const countdownInterval = setInterval(() => {
-        currentCountdown -= 1;
-        setCountdownValue(currentCountdown);
+  /**
+   * Separate effect to handle the actual countdown timer
+   * This runs independently once countdownActive is true
+   */
+  useEffect(() => {
+    if (!countdownActive || !pendingConfig) return;
 
-        if (currentCountdown <= 0) {
-          clearInterval(countdownInterval);
-          setShowCountdown(false);
-          // Start recording with FULL duration (countdown is separate)
-          staticAnalysis.startRecording(pendingConfig.duration);
-          setPendingConfig(null);
+    const duration = pendingConfig.duration;
+    let currentCountdown = pendingConfig.detectionDelay;
+
+    countdownIntervalRef.current = setInterval(() => {
+      currentCountdown -= 1;
+      setCountdownValue(currentCountdown);
+
+      if (currentCountdown <= 0) {
+        if (countdownIntervalRef.current) {
+          clearInterval(countdownIntervalRef.current);
+          countdownIntervalRef.current = null;
         }
-      }, 1000);
+        setShowCountdown(false);
+        setCountdownActive(false);
+        // Start recording with FULL duration (countdown is separate)
+        startRecordingRef.current(duration);
+        setPendingConfig(null);
+      }
+    }, 1000);
 
-      return () => clearInterval(countdownInterval);
-    }
-  }, [isWaitingForPosition, pendingConfig, positionValidation.isValid, staticAnalysis]);
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [countdownActive, pendingConfig]);
 
   /**
    * Handle Live-Time assessment start
@@ -269,20 +299,35 @@ const StaticCaptureView: React.FC = () => {
   };
 
   /**
+   * Ref to track if live-time recording has been triggered (to prevent double-start)
+   */
+  const liveTimeStartedRef = useRef(false);
+
+  /**
    * Effect to handle Live-Time mode: starts when position valid, then records for full duration
    * Position validation is ONLY used to START recording, not to stop it during exercise
    */
   useEffect(() => {
     if (assessmentMode !== 'live-time') return;
+    if (!isWaitingForPosition || !positionValidation.isValid) return;
+    if (liveTimeStartedRef.current) return; // Already started
 
-    if (isWaitingForPosition && positionValidation.isValid) {
-      // Position is valid, start recording immediately for full duration
-      setIsWaitingForPosition(false);
-      staticAnalysis.startRecording(liveTimeMaxDuration);
-    }
+    // Position is valid, start recording immediately for full duration
+    liveTimeStartedRef.current = true;
+    setIsWaitingForPosition(false);
+    startRecordingRef.current(liveTimeMaxDuration);
     // Note: Once recording starts, it runs for the full duration.
     // The user can move freely during the exercise (squat, lunge, etc.)
-  }, [assessmentMode, isWaitingForPosition, positionValidation.isValid, staticAnalysis, liveTimeMaxDuration]);
+  }, [assessmentMode, isWaitingForPosition, positionValidation.isValid, liveTimeMaxDuration]);
+
+  /**
+   * Reset liveTimeStartedRef when not waiting for position
+   */
+  useEffect(() => {
+    if (!isWaitingForPosition) {
+      liveTimeStartedRef.current = false;
+    }
+  }, [isWaitingForPosition]);
 
   /**
    * Handle recording complete
@@ -325,7 +370,7 @@ const StaticCaptureView: React.FC = () => {
       frontalMetrics: frontalAnalysis.aggregatedMetrics,
     });
 
-    // Record assessment result
+    // Record assessment result using averaged angles (calculated at end of recording)
     if (pendingPainExercise) {
       const painEntry: AssessmentPainEntry = {
         intensity,
@@ -335,7 +380,7 @@ const StaticCaptureView: React.FC = () => {
 
       assessment.recordExerciseResult(
         pendingPainExercise,
-        staticAnalysis.currentAngles,
+        staticAnalysis.averagedAngles,
         staticAnalysis.patternFlags,
         staticAnalysis.staticMetrics,
         staticAnalysis.recording.elapsedSeconds,
@@ -352,9 +397,10 @@ const StaticCaptureView: React.FC = () => {
    */
   const handleSkipPain = () => {
     if (pendingPainExercise) {
+      // Use averaged angles (calculated at end of recording)
       assessment.recordExerciseResult(
         pendingPainExercise,
-        staticAnalysis.currentAngles,
+        staticAnalysis.averagedAngles,
         staticAnalysis.patternFlags,
         staticAnalysis.staticMetrics,
         staticAnalysis.recording.elapsedSeconds

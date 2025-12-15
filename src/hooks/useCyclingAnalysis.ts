@@ -29,6 +29,7 @@ import {
   findMin,
   findMax,
   detectLocalMinimum,
+  calculateKopsAngle,
 } from '../lib/vectorMath';
 import {
   generateCyclingSuggestions,
@@ -72,6 +73,8 @@ export interface CyclingAngles {
   leftAnkleAngle: number | null;
   rightAnkleAngle: number | null;
   trunkAngle: number | null;
+  /** KOPS angle - tibial angle from vertical (positive = knee forward) */
+  kopsAngle: number | null;
 }
 
 /**
@@ -121,6 +124,7 @@ export function useCyclingAnalysis(
     leftAnkleAngle: null,
     rightAnkleAngle: null,
     trunkAngle: null,
+    kopsAngle: null,
   });
 
   // State for aggregated stats
@@ -201,6 +205,12 @@ export function useCyclingAnalysis(
         : leftHip || rightHip;
     const trunkAngle = angleFromVertical(shoulderMid, hipMid);
 
+    // Compute KOPS angle (use whichever leg is visible/valid)
+    // Positive = knee forward, Negative = knee back
+    const leftKops = calculateKopsAngle(leftKnee, leftAnkle);
+    const rightKops = calculateKopsAngle(rightKnee, rightAnkle);
+    const kopsAngle = leftKops ?? rightKops;
+
     return {
       leftKneeFlexion,
       rightKneeFlexion,
@@ -209,6 +219,7 @@ export function useCyclingAnalysis(
       leftAnkleAngle,
       rightAnkleAngle,
       trunkAngle,
+      kopsAngle,
     };
   }, []);
 
@@ -434,6 +445,7 @@ export function useCyclingAnalysis(
       leftAnkleAngle: null,
       rightAnkleAngle: null,
       trunkAngle: null,
+      kopsAngle: null,
     });
     setAngleStats({});
     setSuggestions([]);

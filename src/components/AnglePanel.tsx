@@ -52,21 +52,35 @@ interface AngleCardProps {
   min?: number | null;
   max?: number | null;
   isHighlighted?: boolean;
+  tooltip?: string;
+  showSign?: boolean;
 }
 
-const AngleCard: React.FC<AngleCardProps> = ({ label, current, avg, min, max, isHighlighted }) => {
+const AngleCard: React.FC<AngleCardProps> = ({ label, current, avg, min, max, isHighlighted, tooltip, showSign }) => {
+  const formatValue = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return '--';
+    if (showSign && value > 0) return `+${Math.round(value)}°`;
+    return `${Math.round(value)}°`;
+  };
+
   return (
     <div
       className={`p-3 rounded-lg ${isHighlighted ? 'bg-biomech-900/50 border border-biomech-500' : 'bg-gray-700/50'
         }`}
+      title={tooltip}
     >
-      <div className="angle-label mb-1">{label}</div>
-      <div className="angle-value">{formatAngle(current)}</div>
+      <div className="angle-label mb-1 flex items-center gap-1">
+        {label}
+        {tooltip && (
+          <span className="text-gray-500 cursor-help text-xs">ⓘ</span>
+        )}
+      </div>
+      <div className="angle-value">{formatValue(current)}</div>
       {avg !== undefined && (
         <div className="mt-2 text-xs text-gray-400 space-y-0.5">
           <div className="flex justify-between">
             <span>Avg:</span>
-            <span className="text-gray-300">{formatAngle(avg)}</span>
+            <span className="text-gray-300">{formatValue(avg)}</span>
           </div>
           {min !== undefined && max !== undefined && (
             <div className="flex justify-between">
@@ -113,6 +127,17 @@ const AnglePanel: React.FC<AnglePanelProps> = ({
           min={angleStats['right_knee_flexion']?.min}
           max={angleStats['right_knee_flexion']?.max}
           isHighlighted
+        />
+      </div>
+
+      {/* KOPS angle - saddle setback */}
+      <div className="mt-2">
+        <AngleCard
+          label="KOPS"
+          current={currentAngles.kopsAngle}
+          tooltip="Knee Over Pedal Spindle - At 3 o'clock, measures if knee is over the pedal axis. 0° = ideal. Positive = knee forward (saddle too far forward). Negative = knee back (saddle too far back)."
+          isHighlighted
+          showSign
         />
       </div>
 
@@ -230,7 +255,7 @@ const AnglePanel: React.FC<AnglePanelProps> = ({
       <div className="mt-4 pt-4 border-t border-gray-700">
         <p className="text-xs text-gray-500">
           {mode === 'cycling'
-            ? 'Ideal knee angle at BDC: 140°-150°'
+            ? 'Knee at BDC: 140°-150° | KOPS: 0° ± 2°'
             : 'Maintain consistent cadence 170-180 spm for efficiency'}
         </p>
       </div>

@@ -12,14 +12,16 @@ import CyclingCaptureView from './components/CyclingCaptureView';
 import CyclingStaticCaptureView from './components/CyclingStaticCaptureView';
 import StaticCaptureView from './components/StaticCaptureView';
 import RunningCaptureView from './components/RunningCaptureView';
+import PasswordGate from './components/PasswordGate';
 
 /**
  * Main App Component
  */
 const App: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-900">
-      <Routes>
+    <PasswordGate>
+      <div className="min-h-screen bg-gray-900">
+        <Routes>
         {/* Landing page - mode selection */}
         <Route path="/" element={<ModeSelector />} />
 
@@ -40,8 +42,9 @@ const App: React.FC = () => {
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </div>
+        </Routes>
+      </div>
+    </PasswordGate>
   );
 };
 
