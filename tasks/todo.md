@@ -1,86 +1,90 @@
-# Task: Add KOPS Angle to Cycling Static Assessment
+# Task: Knee Structural Assessment — Rep Segmentation + Phase-Based Valgus + Bilateral Differential
 
 ## Objective
 
-Add a KOPS (Knee Over Pedal Spindle) angle measurement to the cycling static analysis workflow. This measures the tibial angle relative to vertical at the 3 o'clock pedal position to assess saddle setback.
+Migliorare il test strutturale al ginocchio (basato su `single-leg-squat-left/right`) in modo che, invece di mediare tutte le metriche sull'intera durata del recording, il codebase:
+
+1. Segmenti le ripetizioni e catturi il **picco di valgo al momento della massima flessione** (non una media diluita)
+2. Classifichi **in quale fase della discesa** compare il valgo → differenziale causa prossimale (anca) vs distale (caviglia)
+3. Confronti automaticamente L vs R quando l'utente esegue entrambe le versioni dell'esercizio → diagnosi strutturale automatica nel report
+
+Questi sono i tre upgrade a **massimo impatto clinico / minimo impatto codice** identificati nella discussione.
 
 ---
 
-## Background
+## Background — Razionale clinico
 
-**KOPS** = Knee Over Pedal Spindle
-- At 3 o'clock (pedal horizontal forward), measures if the knee is in front of, over, or behind the pedal axis
-- Measured as tibial angle from vertical (knee → ankle line vs vertical)
-- Positive angle = knee forward of pedal (setback too small / saddle too far forward)
-- Negative angle = knee behind pedal (setback too large / saddle too far back)
+Il single-leg squat è il gold standard per valutare le cause strutturali del dolore al ginocchio. Oggi il codebase:
 
-**Reference ranges:**
-| Condition | Angle | Interpretation |
-|-----------|-------|----------------|
-| Neutral (KOPS) | 0° ± 2° | Ideal - knee over pedal |
-| Slightly forward | +3° to +5° | Acceptable for some styles |
-| Too forward | > +5° | Saddle too far forward |
-| Slightly back | -3° to -5° | Acceptable for TT/triathlon |
-| Too far back | < -5° | Saddle too far back |
+- **Media le metriche** su tutto il recording → il valgo che appare solo negli ultimi gradi della discesa viene **diluito dalla posizione eretta iniziale**
+- **Non segmenta le ripetizioni** → non si distingue tra "1 rep brutta su 5" e "5 rep brutte"
+- **Non analizza la fase temporale** → non si distingue un valgo **precoce** (caviglia/pronazione) da un valgo **profondo** (medio gluteo)
+- **Non confronta automaticamente L vs R** → l'utente deve leggere due report e confrontarli a occhio
+
+La letteratura (Powers 2010, Willson & Davis 2008) indica che il **momento di comparsa** del valgo è più diagnostico del valgo medio. Inoltre l'asimmetria L/R > 5° su picco di flessione o valgo è indicatore strutturale forte.
+
+---
+
+## Files Coinvolti (da modificare)
+
+| File | Modifica |
+|------|----------|
+| `src/lib/poseTypes.ts` | Estendere `StaticMetrics` con `repAnalysis` (array di rep) e `phaseAnalysis` (valgo per fase) |
+| `src/lib/patterns/staticPatterns.ts` | Aggiungere `segmentReps()` e `computePhaseValgus()`; calcolare peak-valgus-at-peak-flexion per rep |
+| `src/lib/assessmentRecommendations.ts` | Aggiungere `compareBilateralExercises()` → genera `structuralDiagnosis` nel sessionSummary |
+| `src/lib/assessmentTypes.ts` | Aggiungere campo `structuralDiagnosis?: string` al `sessionSummary` |
+| `src/components/AssessmentSummaryPanel.tsx` | Mostrare rep count, peak-valgus per rep, phase (early/mid/deep), e diagnosi bilaterale |
+
+**Nessun nuovo file.** Nessuna modifica ai hooks di pose estimation o al layer MediaPipe. L'analisi è puramente post-processing sui dati già raccolti in `rawMetrics`.
 
 ---
 
 ## Todo
 
-- [x] Add `kopsAngle` to `CyclingStaticMeasurement` interface in `poseTypes.ts`
-- [x] Add KOPS thresholds to `CyclingStaticThresholds` in `poseTypes.ts`
-- [x] Create `calculateKopsAngle()` function in `vectorMath.ts` (tibial angle from vertical)
-- [x] Update `useCyclingAnalysis.ts` to compute KOPS angle
-- [x] Update `useCyclingStaticAnalysis.ts` to compute KOPS angle
-- [x] Add KOPS display to `CyclingStaticCaptureView.tsx` (the actual static cycling UI!)
-- [x] Add KOPS display with tooltip in `AnglePanel.tsx` (dynamic cycling)
+### Fase 1 — Rep segmentation (il fondamento di tutto)
+- [ ] Leggere `staticPatterns.ts` per capire struttura esatta di `StaticRawMetrics`
+- [ ] Aggiungere `RepSegment` interface in `poseTypes.ts`: `{ startIdx, endIdx, peakFlexionIdx, peakFlexionAngle, peakValgusAtFlexion }`
+- [ ] Implementare `segmentReps(kneeAngleHistory)` in `staticPatterns.ts`: trova minimi locali (max flessione) su serie smoothed, con soglia di ampiezza minima (delta ≥ 15°) per ignorare il rumore
+- [ ] Per ogni rep, estrarre il valgo al frame di peak flexion (non medio)
+- [ ] Aggiungere `repAnalysis: RepSegment[]` a `StaticMetrics`
+
+### Fase 2 — Phase analysis (diagnostico chiave)
+- [ ] Aggiungere `PhaseValgus` interface: `{ earlyMean, midMean, deepMean, onsetPhase: 'early' | 'mid' | 'deep' | 'none' }`
+- [ ] Implementare `computePhaseValgus()` in `staticPatterns.ts`: dividere ogni rep in 3 fasi per range di flessione (0-30°, 30-60°, >60° rispetto alla flessione iniziale), computare valgo medio per fase
+- [ ] Determinare `onsetPhase` = prima fase in cui il valgo supera la soglia
+- [ ] Aggiungere `phaseAnalysis: PhaseValgus` a `StaticMetrics`
+
+### Fase 3 — Differenziale bilaterale automatico
+- [ ] In `assessmentRecommendations.ts`, aggiungere `compareBilateralExercises(results: ExerciseAssessmentResult[]): string | null`
+- [ ] Pattern matching sui coppie `single-leg-squat-left` + `single-leg-squat-right`, `step-down-left` + `step-down-right`
+- [ ] Generare testo diagnostico esempio: `"Knee valgus 12° right (deep phase) vs 3° left (none) → probable right proximal dysfunction (glute med)"`
+- [ ] Esporre come `sessionSummary.structuralDiagnosis`
+
+### Fase 4 — UI display
+- [ ] In `AssessmentSummaryPanel.tsx`, aggiungere sezione "Rep analysis" con numero di rep, profondità media, picco valgo
+- [ ] Mostrare fase di onset del valgo con colore (early=arancione/caviglia, deep=rosso/anca)
+- [ ] Se presente `sessionSummary.structuralDiagnosis`, mostrarlo in un banner in cima al report
+
+### Fase 5 — Verifica
+- [ ] `npm run build` — no TS errors
+- [ ] `npm run lint` — no warnings introdotti
+- [ ] Test manuale: eseguire single-leg-squat L+R dal browser, verificare che rep count sia realistico e che la diagnosi bilaterale compaia
 
 ---
 
-## Files Modified
+## Non-goals (esplicitamente esclusi per mantenere la semplicità)
 
-| File | Changes |
-|------|---------|
-| `src/lib/poseTypes.ts` | Added `kopsAngle` to `CyclingStaticMeasurement` interface; Added KOPS thresholds to `CyclingStaticThresholds` |
-| `src/lib/vectorMath.ts` | Added `calculateKopsAngle()` function - calculates signed tibial angle from vertical |
-| `src/hooks/useCyclingAnalysis.ts` | Added `kopsAngle` to `CyclingAngles` interface; Compute KOPS in `computeAngles()` |
-| `src/hooks/useCyclingStaticAnalysis.ts` | Added `kopsAngle` to `CyclingStaticAngles`; Compute and average KOPS in measurements |
-| `src/components/CaptureView.tsx` | Pass `kopsAngle` to overlay |
-| `src/components/AnglePanel.tsx` | Added tooltip support to `AngleCard`; Display KOPS with hover tooltip and signed formatting |
-| `src/components/CyclingStaticCaptureView.tsx` | **Main changes**: Added KOPS in real-time angles panel, measurements panel, results view, and reference info |
+- ❌ Nuovo esercizio dedicato `knee-structural-assessment` — usiamo gli esistenti
+- ❌ Modifica alle soglie `DEFAULT_STATIC_THRESHOLDS` (knee-specific mode) — rimandata
+- ❌ Vista laterale combinata (dorsiflessione/hip hinge) — rimandata
+- ❌ Confidence gating più stretto — rimandato
+- ❌ Modifiche al layer MediaPipe / pose estimation
+
+Tutti questi sono stati discussi ma sono migliorie di secondo livello. L'impatto maggiore arriva dalle Fasi 1-3.
 
 ---
 
 ## Review
 
-### Summary of Changes
+_Da compilare a fine implementazione._
 
-1. **New `calculateKopsAngle()` function** in vectorMath.ts:
-   - Takes knee and ankle points
-   - Returns signed angle (positive = knee forward, negative = knee back)
-   - Uses `atan2` for proper signed angle calculation
-
-2. **Type updates** in poseTypes.ts:
-   - Added `kopsAngle: number | null` to `CyclingStaticMeasurement`
-   - Added KOPS thresholds: `kopsAngleIdealMin: -2`, `kopsAngleIdealMax: 2`, `kopsAngleWarningForward: 5`, `kopsAngleWarningBack: -5`
-
-3. **Hook updates**:
-   - Both `useCyclingAnalysis.ts` and `useCyclingStaticAnalysis.ts` now compute KOPS angle
-   - Static analysis hook averages KOPS over measurement frames
-
-4. **UI display in CyclingStaticCaptureView.tsx** (Static Cycling Analysis):
-   - **Real-time angles panel**: Shows KOPS with tooltip and color coding
-   - **Measurements panel**: Shows KOPS for each recorded measurement (heel/clipped)
-   - **Results view**: Shows KOPS in both measurement cards
-   - **Reference info**: Added "KOPS (ore 3): 0° ± 2° (ginocchio sopra pedale)"
-   - Color coding: Green (±2°), Yellow (±5°), Red (>5°)
-   - Signed display: `+3°` or `-2°` for clarity
-
-5. **UI display in AnglePanel.tsx** (Dynamic Cycling):
-   - KOPS card with tooltip explaining what it measures
-   - Info icon (ⓘ) indicates tooltip availability
-
-### Testing
-
-- Build completed successfully with no TypeScript errors
-- No changes to external APIs
